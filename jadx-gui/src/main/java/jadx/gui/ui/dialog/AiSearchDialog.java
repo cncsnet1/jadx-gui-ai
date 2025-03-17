@@ -362,12 +362,13 @@ public class AiSearchDialog extends CommonSearchDialog {
                 "2. 类名必须与功能描述有明确的语义关联\n" +
                 "3. 不要返回整个包下的所有类\n" +
                 "4. 如果类名与功能描述关联度不高，不要返回\n" +
-                "5. 返回结果必须是完整的类名\n" +
+                "5. 返回结果必须是完整的类名，后面跟着命中率(0-100)\n" +
                 "6. 如果当前批次没有相关类，请直接回复\"本批次无相关类\"\n" +
-                "7. 不要解释选择原因，只返回类名\n" +
+                "7. 不要解释选择原因，只返回类名和命中率\n" +
                 "8. 类名匹配必须精确，不要使用模糊匹配\n" +
                 "9. 不要返回内部类，除非明确与功能相关\n" +
-                "10. 如果类名包含多个单词，必须与功能描述中的关键词有直接对应关系\n";
+                "10. 如果类名包含多个单词，必须与功能描述中的关键词有直接对应关系\n" +
+                "11. 返回格式为：类名|命中率，例如：com.example.MyClass|85\n";
     }
 
     private void searchWithAI(String query) {
@@ -457,7 +458,7 @@ public class AiSearchDialog extends CommonSearchDialog {
                             aiResponseArea.setText(fullAnalysis.toString());
                             aiResponseArea.setCaretPosition(aiResponseArea.getDocument().getLength());
 
-                            // 从AI响应中提取类名
+                            // 从AI响应中提取类名和命中率
                             String[] lines = batchAnalysis.toString().split("\n");
                             if (!batchAnalysis.toString().contains("\"本批次无相关类\"")) {
                                 for (String line : lines) {
@@ -466,11 +467,17 @@ public class AiSearchDialog extends CommonSearchDialog {
                                     if (line.isEmpty() || line.startsWith("//") || line.startsWith("#")) {
                                         continue;
                                     }
-                                    // 精确匹配类名
-                                    for (String className : batch) {
-                                        if (line.equals(className)) {
-                                            allRelevantClasses.add(className);
-                                            break;
+                                    // 解析类名和命中率
+                                    String[] parts = line.split("\\|");
+                                    if (parts.length == 2) {
+                                        String className = parts[0].trim();
+                                        int relevance = Integer.parseInt(parts[1].trim());
+                                        // 精确匹配类名
+                                        for (String batchClassName : batch) {
+                                            if (className.equals(batchClassName)) {
+                                                allRelevantClasses.add(className + "|" + relevance);
+                                                break;
+                                            }
                                         }
                                     }
                                 }
@@ -478,12 +485,18 @@ public class AiSearchDialog extends CommonSearchDialog {
 
                             // 更新结果表格
                             List<JNode> results = new ArrayList<>();
-                            for (String className : allRelevantClasses) {
+                            for (String classInfo : allRelevantClasses) {
+                                String[] parts = classInfo.split("\\|");
+                                String className = parts[0];
+                                int relevance = Integer.parseInt(parts[1]);
+
                                 JavaClass javaClass = mainWindow.getWrapper().searchJavaClassByFullAlias(className);
                                 if (javaClass != null) {
                                     // 使用NodeCache创建JClass实例
                                     JClass jClass = new JClass(javaClass, null, mainWindow.getCacheObject().getNodeCache());
                                     if (jClass != null) {
+                                        // 设置显示名称为类名和命中率
+
                                         results.add(jClass);
                                     }
                                 }
