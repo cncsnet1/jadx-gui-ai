@@ -1,16 +1,6 @@
 <img src="https://raw.githubusercontent.com/skylot/jadx/master/jadx-gui/src/main/resources/logos/jadx-logo.png" width="64" align="left" />
 
 ## JADX-GUI-AI
-
-![构建状态](https://img.shields.io/github/actions/workflow/status/skylot/jadx/build-artifacts.yml)
-![GitHub 贡献者](https://img.shields.io/github/contributors/skylot/jadx)
-![GitHub 所有发布版本](https://img.shields.io/github/downloads/skylot/jadx/total)
-![GitHub 最新发布版本](https://img.shields.io/github/downloads/skylot/jadx/latest/total)
-![最新发布](https://img.shields.io/github/release/skylot/jadx.svg)
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.skylot/jadx-core)](https://search.maven.org/search?q=g:io.github.skylot%20AND%20jadx)
-![Java 11+](https://img.shields.io/badge/Java-11%2B-blue)
-[![许可证](http://img.shields.io/:license-apache-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
-
 **jadx-gui-ai** - 基于 JADX 的智能反编译工具
 
 这是一个在 JADX 基础上增强的智能反编译工具,集成了 AI 辅助功能,可以帮助开发者更好地理解和分析反编译后的代码。
@@ -50,7 +40,7 @@
    - `jadx-gui-ai` - 图形界面版本(推荐)
    - `jadx` - 命令行版本
 
-**Windows 用户注意:** 
+**Windows 用户注意:**
 - 双击运行 `.bat` 文件
 - 需要 64 位的 Java 11+
 - 可以从 [oracle.com](https://www.oracle.com/java/technologies/downloads/#jdk17-windows) 下载 JDK (选择 x64 安装包)

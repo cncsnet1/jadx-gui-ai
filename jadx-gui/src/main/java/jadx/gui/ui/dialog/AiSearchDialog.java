@@ -4,15 +4,24 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -23,10 +32,13 @@ import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.WindowConstants;
 import javax.swing.event.ChangeListener;
 
+import jadx.gui.ui.panel.ProgressPanel;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,6 +84,7 @@ import jadx.gui.utils.TextStandardActions;
 import jadx.gui.utils.UiUtils;
 import jadx.gui.utils.layout.WrapLayout;
 import jadx.gui.utils.rx.RxUtils;
+import jadx.gui.utils.ai.AIHttpUtils;
 
 public class AiSearchDialog extends CommonSearchDialog {
     private static final Logger LOG = LoggerFactory.getLogger(AiSearchDialog.class);
@@ -135,12 +148,10 @@ public class AiSearchDialog extends CommonSearchDialog {
     private transient Color searchFieldDefaultBgColor;
 
     private transient JTextField searchField;
+    private transient JTextField packageField;
 
     private transient @Nullable SearchTask searchTask;
-    private transient JButton loadAllButton;
-    private transient JButton loadMoreButton;
-    private transient JButton stopBtn;
-    private transient JButton sortBtn;
+
 
     private transient Disposable searchDisposable;
     private transient SearchEventEmitter searchEmitter;
@@ -157,11 +168,31 @@ public class AiSearchDialog extends CommonSearchDialog {
      */
     private final Executor searchBackgroundExecutor = Executors.newSingleThreadExecutor();
 
+    private transient AIHttpUtils aiHttpUtils;
+    private List<String> allFilePaths = new ArrayList<>();
+    private static final int MAX_TOKENS = 4096;
+    private static final double TEMPERATURE = 0.7;
+    private JTextArea aiResponseArea;
+
+    private String systemPrompt;
+
+    private ResultsModel resultsModel;
+    private transient JLabel warnLabel;
+    private transient ProgressPanel progressPane;
+    private transient ResultsTable resultsTable;
+    private transient JLabel resultsInfoLabel;
+
     private AiSearchDialog(MainWindow mainWindow, SearchPreset preset, Set<SearchOptions> additionalOptions) {
         super(mainWindow, NLS.str("menu.ai_search"));
         this.searchPreset = preset;
         this.options = buildOptions(preset);
         this.options.addAll(additionalOptions);
+
+        // 初始化packageField
+        packageField = new JTextField();
+        if (initSearchPackage != null) {
+            packageField.setText(initSearchPackage);
+        }
 
         loadWindowPos();
         initUI();
@@ -212,6 +243,21 @@ public class AiSearchDialog extends CommonSearchDialog {
 
     @Override
     protected void openInit() {
+        // 先初始化AI和文件列表
+        if (!initAI()) {
+            UiUtils.uiRun(() -> {
+                resultsInfoLabel.setText("请先在设置中配置AI接口信息");
+                aiResponseArea.setText("请先在设置中配置以下信息：\n1. AI接口地址\n2. API密钥\n3. 模型名称");
+            });
+            return;
+        }
+
+        // 收集并过滤文件列表
+        collectAllFilePaths();
+
+        // 初始化搜索事件
+        initSearchEvents();
+
         String searchText = initSearchText != null ? initSearchText : cache.getLastSearch();
         if (searchText != null) {
             searchField.setText(searchText);
@@ -227,141 +273,25 @@ public class AiSearchDialog extends CommonSearchDialog {
         }
     }
 
-    private void initUI() {
-        searchField = new JTextField();
-        searchFieldDefaultBgColor = searchField.getBackground();
-        searchField.setAlignmentX(LEFT_ALIGNMENT);
-        TextStandardActions.attach(searchField);
-        addSearchHistoryButton();
-        searchField.putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true);
+    private boolean initAI() {
+        String apiUrl = mainWindow.getSettings().getAiApi();
+        String apiKey = mainWindow.getSettings().getAiApiKey();
+        String model = mainWindow.getSettings().getAiModel();
 
-        boolean autoSearch = mainWindow.getSettings().isUseAutoSearch();
-        JButton searchBtn = new JButton(NLS.str("search_dialog.search_button"));
-        searchBtn.setVisible(!autoSearch);
-        searchBtn.addActionListener(ev -> searchEmitter.emitSearch());
-
-
-        JPanel searchLinePanel = new JPanel();
-        searchLinePanel.setLayout(new BoxLayout(searchLinePanel, BoxLayout.LINE_AXIS));
-        searchLinePanel.add(searchField);
-        searchLinePanel.add(Box.createRigidArea(new Dimension(5, 0)));
-        searchLinePanel.add(searchBtn);
-        searchLinePanel.add(Box.createRigidArea(new Dimension(5, 0)));
-
-        searchLinePanel.setAlignmentX(LEFT_ALIGNMENT);
-
-        JLabel findLabel = new JLabel(NLS.str("search_dialog.open_by_name"));
-        findLabel.setAlignmentX(LEFT_ALIGNMENT);
-
-        JPanel searchFieldPanel = new JPanel();
-        searchFieldPanel.setLayout(new BoxLayout(searchFieldPanel, BoxLayout.PAGE_AXIS));
-        searchFieldPanel.setAlignmentX(LEFT_ALIGNMENT);
-        searchFieldPanel.add(findLabel);
-        searchFieldPanel.add(Box.createRigidArea(new Dimension(0, 5)));
-        searchFieldPanel.add(searchLinePanel);
-
-        JPanel searchInPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        searchInPanel.setBorder(BorderFactory.createTitledBorder(NLS.str("search_dialog.search_in")));
-        searchInPanel.setPreferredSize(new Dimension(400, 50));
-        searchInPanel.add(makeOptionsCheckBox(NLS.str("search_dialog.class"), SearchOptions.CLASS));
-
-        JPanel optionsPanel = new JPanel(new WrapLayout(WrapLayout.LEFT, 0, 0));
-        optionsPanel.setAlignmentX(LEFT_ALIGNMENT);
-        optionsPanel.add(searchInPanel);
-
-        JPanel searchPane = new JPanel();
-        searchPane.setLayout(new BoxLayout(searchPane, BoxLayout.PAGE_AXIS));
-        searchPane.add(searchFieldPanel);
-        searchPane.add(Box.createRigidArea(new Dimension(0, 5)));
-        searchPane.add(optionsPanel);
-
-        initCommon();
-        JPanel resultsPanel = initResultsTable();
-        JPanel buttonPane = initButtonsPanel();
-
-        JPanel contentPanel = new JPanel();
-        contentPanel.setLayout(new BorderLayout(5, 5));
-        contentPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        contentPanel.add(searchPane, BorderLayout.PAGE_START);
-        contentPanel.add(resultsPanel, BorderLayout.CENTER);
-        contentPanel.add(buttonPane, BorderLayout.PAGE_END);
-        getContentPane().add(contentPanel);
-
-        setLocationRelativeTo(null);
-        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-    }
-
-    private void addSearchHistoryButton() {
-        JButton searchHistoryButton = new JButton(new FlatSearchWithHistoryIcon(true));
-        searchHistoryButton.setToolTipText(NLS.str("search_dialog.search_history"));
-        searchHistoryButton.addActionListener(e -> {
-            JPopupMenu popupMenu = new JPopupMenu();
-            List<String> searchHistory = mainWindow.getProject().getSearchHistory();
-            if (searchHistory.isEmpty()) {
-                popupMenu.add("(empty)");
-            } else {
-                for (String str : searchHistory) {
-                    JMenuItem item = popupMenu.add(str);
-                    item.addActionListener(ev -> searchField.setText(str));
-                }
-            }
-            popupMenu.show(searchHistoryButton, 0, searchHistoryButton.getHeight());
-        });
-        searchField.putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_COMPONENT, searchHistoryButton);
-    }
-
-    protected void addResultsActions(JPanel resultsActionsPanel) {
-        loadAllButton = new JButton(NLS.str("search_dialog.load_all"));
-        loadAllButton.addActionListener(e -> loadMoreResults(true));
-        loadAllButton.setEnabled(false);
-
-        loadMoreButton = new JButton(NLS.str("search_dialog.load_more"));
-        loadMoreButton.addActionListener(e -> loadMoreResults(false));
-        loadMoreButton.setEnabled(false);
-
-        stopBtn = new JButton(NLS.str("search_dialog.stop"));
-        stopBtn.addActionListener(e -> pauseSearch());
-        stopBtn.setEnabled(false);
-
-        sortBtn = new JButton(NLS.str("search_dialog.sort_results"));
-        sortBtn.addActionListener(e -> {
-            synchronized (pendingResults) {
-                resultsModel.sort();
-                resultsTable.updateTable();
-            }
-        });
-        sortBtn.setEnabled(false);
-
-        resultsActionsPanel.add(loadAllButton);
-        resultsActionsPanel.add(Box.createRigidArea(new Dimension(10, 0)));
-        resultsActionsPanel.add(loadMoreButton);
-        resultsActionsPanel.add(Box.createRigidArea(new Dimension(10, 0)));
-        resultsActionsPanel.add(stopBtn);
-        resultsActionsPanel.add(Box.createRigidArea(new Dimension(10, 0)));
-        resultsActionsPanel.add(stopBtn);
-        super.addResultsActions(resultsActionsPanel);
-        resultsActionsPanel.add(Box.createRigidArea(new Dimension(10, 0)));
-        resultsActionsPanel.add(sortBtn);
-    }
-
-    private class SearchEventEmitter {
-        private final Flowable<String> flowable;
-        private Emitter<String> emitter;
-
-        public SearchEventEmitter() {
-            flowable = Flowable.create(this::saveEmitter, BackpressureStrategy.LATEST);
+        // 检查AI配置是否完整
+        if (apiUrl == null || apiUrl.trim().isEmpty() ||
+            apiKey == null || apiKey.trim().isEmpty() ||
+            model == null || model.trim().isEmpty()) {
+            LOG.warn("AI配置信息不完整");
+            return false;
         }
 
-        public Flowable<String> getFlowable() {
-            return flowable;
-        }
-
-        private void saveEmitter(Emitter<String> emitter) {
-            this.emitter = emitter;
-        }
-
-        public synchronized void emitSearch() {
-            this.emitter.onNext(searchField.getText());
+        try {
+            aiHttpUtils = new AIHttpUtils(apiUrl, apiKey);
+            return true;
+        } catch (Exception e) {
+            LOG.error("初始化AI工具失败", e);
+            return false;
         }
     }
 
@@ -370,94 +300,216 @@ public class AiSearchDialog extends CommonSearchDialog {
             searchDisposable.dispose();
             searchDisposable = null;
         }
-        searchEmitter = new SearchEventEmitter();
-        Flowable<String> searchEvents;
+        try {
+            searchEmitter = new SearchEventEmitter();
+            Flowable<String> searchEvents = Flowable.merge(
+                    RxUtils.textFieldEnterPress(searchField),
+                    searchEmitter.getFlowable());
 
-        searchEvents = Flowable.merge(
-                RxUtils.textFieldEnterPress(searchField),
-
-                searchEmitter.getFlowable());
-
-        searchDisposable = searchEvents
-                .debounce(50, TimeUnit.MILLISECONDS)
-                .observeOn(Schedulers.from(searchBackgroundExecutor))
-                .subscribe(t -> this.search(searchField.getText()));
+            searchDisposable = searchEvents
+                    .debounce(300, TimeUnit.MILLISECONDS)
+                    .observeOn(Schedulers.from(searchBackgroundExecutor))
+                    .subscribe(
+                        query -> {
+							System.out.println("开始AI搜索:"+query);
+                            searchWithAI(query);
+                        },
+                        error -> {
+                            LOG.error("搜索事件处理错误", error);
+                            UiUtils.uiRun(() -> {
+                                resultsInfoLabel.setText("搜索处理出错：" + error.getMessage());
+                                aiResponseArea.setText("搜索处理出错：" + error.getMessage());
+                            });
+                        }
+                    );
+        } catch (Exception e) {
+            LOG.error("初始化搜索事件失败", e);
+            UiUtils.uiRun(() -> {
+                resultsInfoLabel.setText("初始化搜索功能失败：" + e.getMessage());
+                aiResponseArea.setText("初始化搜索功能失败：" + e.getMessage());
+            });
+        }
     }
 
-    private void search(String text) {
+    private void collectAllFilePaths() {
+        // 获取所有Java类
+        List<JavaClass> allClasses = mainWindow.getWrapper().getIncludedClassesWithInners();
 
-        UiUtils.notUiThreadGuard();
-        stopSearchTask();
-        UiUtils.uiRun(this::resetSearch);
-        searchTask = prepareSearch(text);
-        if (searchTask == null) {
+        // 获取包名过滤
+        final String packageFilter = packageField != null ? packageField.getText().trim() : "";
+
+        // 过滤类名
+        allFilePaths = allClasses.stream()
+                .map(JavaClass::getFullName)  // 直接使用完整类名
+                .filter(Objects::nonNull)
+                .filter(className -> {
+                    if (packageFilter.isEmpty()) {
+                        return true;  // 如果没有输入包名，返回所有类
+                    }
+                    return className.startsWith(packageFilter);  // 只返回指定包下的类
+                })
+                .distinct()
+                .collect(Collectors.toList());
+
+        // 更新系统提示词
+        systemPrompt = "你是一个专业的代码分析助手，负责帮助用户在Java项目中定位相关代码。\n" +
+                "我会给你以下信息：\n" +
+                "1. 用户的功能描述或查询需求\n" +
+                "2. 项目中所有Java类的完整类名列表" +
+                (packageFilter.isEmpty() ? "" : "(已过滤为" + packageFilter + "包下的类)") + "\n\n" +
+                "请严格按照以下规则进行分析：\n" +
+                "1. 只根据类名进行判断，不要根据包名推测\n" +
+                "2. 类名必须与功能描述有明确的语义关联\n" +
+                "3. 不要返回整个包下的所有类\n" +
+                "4. 如果类名与功能描述关联度不高，不要返回\n" +
+                "5. 返回结果必须是完整的类名\n" +
+                "6. 如果当前批次没有相关类，请直接回复\"本批次无相关类\"\n" +
+                "7. 不要解释选择原因，只返回类名\n" +
+                "8. 类名匹配必须精确，不要使用模糊匹配\n" +
+                "9. 不要返回内部类，除非明确与功能相关\n" +
+                "10. 如果类名包含多个单词，必须与功能描述中的关键词有直接对应关系\n";
+    }
+
+    private void searchWithAI(String query) {
+        if (aiHttpUtils == null) {
+            UiUtils.uiRun(() -> {
+                resultsInfoLabel.setText("请先在设置中配置AI接口信息");
+                aiResponseArea.setText("请先在设置中配置AI接口信息");
+            });
             return;
         }
-        UiUtils.uiRunAndWait(() -> {
-            updateTableHighlight();
-            prepareForSearch();
-        });
-        this.searchTask.setResultsLimit(mainWindow.getSettings().getSearchResultsPerPage());
-        this.searchTask.setProgressListener(this::updateProgress);
-        this.searchTask.fetchResults();
-        LOG.debug("Total search items count estimation: {}", this.searchTask.getTaskProgress().total());
-    }
 
-    private SearchTask prepareSearch(String text) {
-        if (text == null || options.isEmpty()) {
-            return null;
+        if (query == null || query.trim().isEmpty()) {
+            UiUtils.uiRun(() -> {
+                resultsInfoLabel.setText("请输入搜索内容");
+                aiResponseArea.setText("请输入要搜索的内容");
+            });
+            return;
         }
-        // allow empty text for comments search
-        if (text.isEmpty() && !options.contains(SearchOptions.COMMENT)) {
-            return null;
-        }
-        LOG.debug("Building search for '{}', options: {}", text, options);
-        boolean ignoreCase = options.contains(IGNORE_CASE);
-        boolean useRegex = options.contains(USE_REGEX);
 
-        // Find the JavaPackage for the searched package string
+        try {
+            // 重新收集并过滤文件列表
+            collectAllFilePaths();
 
-        JavaPackage searchPackage = null;
+            // 清空之前的结果
+            UiUtils.uiRun(() -> {
+                aiResponseArea.setText("");
+                resultsInfoLabel.setText("AI正在分析...");
+                resultsModel.clear();
+                resultsTable.updateTable();
+            });
 
+            // 将所有类名分批处理
+            int classesPerBatch = 300; // 增加每批处理的类数量
+            Set<String> allRelevantClasses = new HashSet<>();
+            StringBuffer fullAnalysis = new StringBuffer();
 
+            // 计算总批次
+            int totalBatches = (allFilePaths.size() + classesPerBatch - 1) / classesPerBatch;
 
-        SearchSettings searchSettings = new SearchSettings(text, ignoreCase, useRegex, searchPackage);
-        String error = searchSettings.prepare();
-        if (error == null) {
-            if (Objects.equals(searchField.getBackground(), SEARCH_FIELD_ERROR_COLOR)) {
-                searchField.setBackground(searchFieldDefaultBgColor);
+            // 更新状态信息，显示当前正在分析的包
+            final String packageFilter = packageField != null ? packageField.getText().trim() : "";
+            if (!packageFilter.isEmpty()) {
+                UiUtils.uiRun(() -> {
+                    resultsInfoLabel.setText("正在分析 " + packageFilter + " 包下的类...");
+                });
             }
-        } else {
-            searchField.setBackground(SEARCH_FIELD_ERROR_COLOR);
-            resultsInfoLabel.setText(error);
-            return null;
+
+            for (int i = 0; i < allFilePaths.size(); i += classesPerBatch) {
+                final int currentBatch = i / classesPerBatch + 1;
+                int end = Math.min(i + classesPerBatch, allFilePaths.size());
+                List<String> batch = allFilePaths.subList(i, end);
+
+                // 构建当前批次的消息
+                List<Map<String, String>> messages = new ArrayList<>();
+                String currentPrompt = systemPrompt + "\n当前批次类名列表（第" + currentBatch + "批，共" +
+                    totalBatches + "批）：\n" +
+                    String.join("\n", batch);
+
+                messages.add(AIHttpUtils.createMessage("system", currentPrompt));
+                messages.add(AIHttpUtils.createMessage("user",
+                    "请严格按照以下要求分析功能描述，从当前批次类名中找出相关的类：\n" +
+                    "1. 只返回与功能描述直接相关的类名\n" +
+                    "2. 每个类名单独一行\n" +
+                    "3. 不要返回无关的类\n" +
+                    "4. 不要解释选择原因\n" +
+                    "5. 如果当前批次没有相关类，请直接回复\"本批次无相关类\"\n\n" +
+                    "当前批次类名列表：\n" +
+                    String.join("\n", batch) + "\n\n" +
+                    "功能描述：\n" + query));
+
+                // 使用StringBuffer来累积当前批次的分析结果
+                StringBuffer batchAnalysis = new StringBuffer();
+
+                // AI分析当前批次
+                aiHttpUtils.createStreamingChatCompletionWithCallback(
+                    null,
+                    mainWindow.getSettings().getAiModel(),
+                    messages,
+                    TEMPERATURE,
+                    MAX_TOKENS,
+                    content -> {
+                        batchAnalysis.append(content);
+
+                        // 在UI线程中更新结果
+                        UiUtils.uiRun(() -> {
+                            fullAnalysis.append(content);
+                            aiResponseArea.setText(fullAnalysis.toString());
+                            aiResponseArea.setCaretPosition(aiResponseArea.getDocument().getLength());
+
+                            // 从AI响应中提取类名
+                            String[] lines = batchAnalysis.toString().split("\n");
+                            if (!batchAnalysis.toString().contains("\"本批次无相关类\"")) {
+                                for (String line : lines) {
+                                    line = line.trim();
+                                    // 跳过空行和注释行
+                                    if (line.isEmpty() || line.startsWith("//") || line.startsWith("#")) {
+                                        continue;
+                                    }
+                                    // 精确匹配类名
+                                    for (String className : batch) {
+                                        if (line.equals(className)) {
+                                            allRelevantClasses.add(className);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 更新结果表格
+                            List<JNode> results = new ArrayList<>();
+                            for (String className : allRelevantClasses) {
+                                JavaClass javaClass = mainWindow.getWrapper().searchJavaClassByFullAlias(className);
+                                if (javaClass != null) {
+                                    // 使用NodeCache创建JClass实例
+                                    JClass jClass = new JClass(javaClass, null, mainWindow.getCacheObject().getNodeCache());
+                                    if (jClass != null) {
+                                        results.add(jClass);
+                                    }
+                                }
+                            }
+                            resultsModel.clear();
+                            resultsModel.addAll(results);
+                            resultsTable.updateTable();
+
+                            resultsInfoLabel.setText("找到 " + results.size() + " 个相关类 (分析第 " +
+                                currentBatch + "/" + totalBatches + " 批)");
+                        });
+                    }
+                );
+            }
+
+        } catch (Exception e) {
+            LOG.error("AI搜索失败", e);
+            UiUtils.uiRun(() -> {
+                resultsInfoLabel.setText("AI搜索失败: " + e.getMessage());
+                aiResponseArea.setText("AI搜索失败: " + e.getMessage() + "\n\n详细错误信息：\n" + e.toString());
+            });
         }
-        SearchTask newSearchTask = new SearchTask(mainWindow, this::addSearchResult, this::searchFinished);
-        if (!buildSearch(newSearchTask, text, searchSettings)) {
-            return null;
-        }
-        return newSearchTask;
     }
 
-    private boolean buildSearch(SearchTask newSearchTask, String text, SearchSettings searchSettings) {
-        List<JavaClass> allClasses;
 
-        allClasses = mainWindow.getWrapper().getIncludedClassesWithInners();
 
-        // allow empty text for comments search
-        if (text.isEmpty() && options.contains(SearchOptions.COMMENT)) {
-            newSearchTask.addProviderJob(new CommentSearchProvider(mainWindow, searchSettings));
-            return true;
-        }
-        // using ordered execution for fast tasks
-        MergedSearchProvider merged = new MergedSearchProvider();
-        if (options.contains(CLASS)) {
-            merged.add(new ClassSearchProvider(mainWindow, searchSettings, allClasses));
-        }
-        merged.prepare();
-        newSearchTask.addProviderJob(merged);
-        return true;
-    }
 
     @Override
     protected void openItem(JNode node) {
@@ -468,14 +520,7 @@ public class AiSearchDialog extends CommonSearchDialog {
         super.openItem(node);
     }
 
-    private void pauseSearch() {
-        stopBtn.setEnabled(false);
-        searchBackgroundExecutor.execute(() -> {
-            if (searchTask != null) {
-                searchTask.cancel();
-            }
-        });
-    }
+
 
     private void stopSearchTask() {
         UiUtils.notUiThreadGuard();
@@ -485,96 +530,6 @@ public class AiSearchDialog extends CommonSearchDialog {
             searchTask = null;
         }
     }
-
-    private void loadMoreResults(boolean all) {
-        searchBackgroundExecutor.execute(() -> {
-            if (searchTask == null) {
-                return;
-            }
-            searchTask.cancel();
-            searchTask.waitTask();
-            UiUtils.uiRunAndWait(this::prepareForSearch);
-            if (all) {
-                searchTask.setResultsLimit(0);
-            }
-            searchTask.fetchResults();
-        });
-    }
-
-    private void resetSearch() {
-        UiUtils.uiThreadGuard();
-        resultsModel.clear();
-        resultsTable.updateTable();
-        synchronized (pendingResults) {
-            pendingResults.clear();
-        }
-        updateProgressLabel("");
-        progressPane.setVisible(false);
-        warnLabel.setVisible(false);
-        loadAllButton.setEnabled(false);
-        loadMoreButton.setEnabled(false);
-    }
-
-    private void prepareForSearch() {
-        UiUtils.uiThreadGuard();
-        stopBtn.setEnabled(true);
-        sortBtn.setEnabled(false);
-        showSearchState();
-        progressStartCommon();
-    }
-
-    private void addSearchResult(JNode node) {
-        Objects.requireNonNull(node);
-        synchronized (pendingResults) {
-            UiUtils.notUiThreadGuard();
-            pendingResults.add(node);
-        }
-    }
-
-    private void updateTable() {
-        synchronized (pendingResults) {
-            UiUtils.uiThreadGuard();
-            Collections.sort(pendingResults);
-            resultsModel.addAll(pendingResults);
-            pendingResults.clear();
-            resultsTable.updateTable();
-        }
-    }
-
-    private void updateTableHighlight() {
-        String text = searchField.getText();
-        updateHighlightContext(text, !options.contains(IGNORE_CASE), options.contains(USE_REGEX), false);
-        cache.setLastSearch(text);
-
-        //cache.getLastSearchOptions().put(searchPreset, options);
-        if (!mainWindow.getSettings().isUseAutoSearch()) {
-            mainWindow.getProject().addToSearchHistory(text);
-        }
-    }
-
-    private void updateProgress(ITaskProgress progress) {
-        UiUtils.uiRun(() -> {
-            progressPane.setProgress(progress);
-            updateTable();
-        });
-    }
-
-    public void updateProgressLabel(String text) {
-        UiUtils.uiRun(() -> progressInfoLabel.setText(text));
-    }
-
-    private void searchFinished(ITaskInfo status, Boolean complete) {
-        UiUtils.uiThreadGuard();
-        LOG.debug("Search complete: {}, complete: {}", status, complete);
-        loadAllButton.setEnabled(!complete);
-        loadMoreButton.setEnabled(!complete);
-        stopBtn.setEnabled(false);
-        progressFinishedCommon();
-        updateTable();
-        updateProgressLabel(complete);
-        sortBtn.setEnabled(resultsModel.getRowCount() != 0);
-    }
-
     private void unloadTempData() {
         mainWindow.getWrapper().unloadClasses();
         System.gc();
@@ -623,6 +578,172 @@ public class AiSearchDialog extends CommonSearchDialog {
         if (activeTabListener != null) {
             mainWindow.getTabbedPane().removeChangeListener(activeTabListener);
             activeTabListener = null;
+        }
+    }
+
+    private void initUI() {
+        // 初始化必要的组件
+        resultsModel = new ResultsModel();
+        resultsTable = new ResultsTable(resultsModel, new ResultsTableCellRenderer());
+
+        warnLabel = new JLabel();
+        warnLabel.setForeground(Color.RED);
+        warnLabel.setVisible(false);
+
+        resultsInfoLabel = new JLabel();
+        resultsInfoLabel.setForeground(new Color(75, 75, 75));
+        resultsInfoLabel.setVisible(true);
+
+        progressPane = new ProgressPanel(mainWindow, false);
+        progressPane.setVisible(false);
+
+
+        // 创建主布局面板
+        JPanel contentPanel = new JPanel(new BorderLayout(5, 5));
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+
+        // 搜索框面板
+        JPanel searchLinePanel = new JPanel();
+        searchLinePanel.setLayout(new BoxLayout(searchLinePanel, BoxLayout.Y_AXIS));
+        searchLinePanel.setAlignmentX(LEFT_ALIGNMENT);
+
+        // 包名输入面板
+        JPanel packagePanel = new JPanel();
+        packagePanel.setLayout(new BoxLayout(packagePanel, BoxLayout.X_AXIS));
+        packagePanel.setAlignmentX(LEFT_ALIGNMENT);
+
+        JLabel packageLabel = new JLabel("包名：");
+        packageField.setFont(packageField.getFont().deriveFont(14f));
+        packageField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "输入包名进行过滤(可选)");
+        new TextStandardActions(packageField);
+
+        // 添加包名输入框的监听器
+        packageField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    collectAllFilePaths();  // 重新收集文件
+                    searchEmitter.emitSearch();  // 触发搜索
+                }
+            }
+        });
+
+        packagePanel.add(packageLabel);
+        packagePanel.add(packageField);
+
+        // 搜索输入面板
+        JPanel searchPanel = new JPanel();
+        searchPanel.setLayout(new BoxLayout(searchPanel, BoxLayout.X_AXIS));
+        searchPanel.setAlignmentX(LEFT_ALIGNMENT);
+
+        searchField = new JTextField();
+        searchField.setFont(searchField.getFont().deriveFont(14f));
+        searchFieldDefaultBgColor = searchField.getBackground();
+        searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, "输入功能描述，AI将分析项目结构并找出最相关的源代码文件");
+        new TextStandardActions(searchField);
+
+        // 搜索按钮
+        JButton searchBtn = new JButton("开始搜索");
+        searchBtn.setFont(searchBtn.getFont().deriveFont(14f));
+        searchBtn.setPreferredSize(new Dimension(120, 40));
+        searchBtn.addActionListener(e -> searchEmitter.emitSearch());
+
+        searchPanel.add(searchField);
+        searchPanel.add(Box.createRigidArea(new Dimension(10, 0)));
+        searchPanel.add(searchBtn);
+
+        searchLinePanel.add(packagePanel);
+        searchLinePanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        searchLinePanel.add(searchPanel);
+
+        // AI响应区域
+        aiResponseArea = new JTextArea();
+        aiResponseArea.setFont(new Font("Dialog", Font.PLAIN, 14));
+        aiResponseArea.setEditable(false);
+        aiResponseArea.setLineWrap(true);
+        aiResponseArea.setWrapStyleWord(true);
+        aiResponseArea.setBackground(new Color(245, 245, 245));
+
+        JScrollPane aiScrollPane = new JScrollPane(aiResponseArea);
+        aiScrollPane.setPreferredSize(new Dimension(600, 200));
+        aiScrollPane.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("AI分析结果"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+
+        // 添加搜索面板到顶部
+        contentPanel.add(searchLinePanel, BorderLayout.NORTH);
+
+        // 创建中间面板，包含AI响应区域和结果表格
+        JPanel centerPanel = new JPanel();
+        centerPanel.setLayout(new BorderLayout(5, 5));
+
+        // 创建AI响应区域面板
+        JPanel aiPanel = new JPanel(new BorderLayout());
+        aiPanel.add(aiScrollPane, BorderLayout.CENTER);
+
+        // 创建结果表格面板
+        JPanel resultsPanel = new JPanel(new BorderLayout());
+        resultsPanel.add(warnLabel, BorderLayout.NORTH);
+        resultsPanel.add(new JScrollPane(resultsTable), BorderLayout.CENTER);
+        resultsPanel.add(progressPane, BorderLayout.SOUTH);
+
+        // 将AI响应区域和结果表格添加到中间面板
+        centerPanel.add(aiPanel, BorderLayout.NORTH);
+        centerPanel.add(resultsPanel, BorderLayout.CENTER);
+
+        // 添加状态信息标签
+        JPanel statusPanel = new JPanel(new BorderLayout());
+        statusPanel.add(resultsInfoLabel, BorderLayout.CENTER);
+        centerPanel.add(statusPanel, BorderLayout.SOUTH);
+
+        // 添加中间面板到主面板
+        contentPanel.add(centerPanel, BorderLayout.CENTER);
+
+        // 添加按钮面板到底部
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+
+        contentPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        // 设置内容面板
+        setContentPane(contentPanel);
+
+
+
+        // 调整窗口大小和位置
+        pack();
+        setSize(800, 800);
+        setLocationRelativeTo(null);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+    }
+
+    private class SearchEventEmitter {
+        private final Flowable<String> flowable;
+        private Emitter<String> emitter;
+
+        public SearchEventEmitter() {
+            flowable = Flowable.create(this::saveEmitter, BackpressureStrategy.LATEST);
+        }
+
+        public Flowable<String> getFlowable() {
+            return flowable;
+        }
+
+        private void saveEmitter(Emitter<String> emitter) {
+            this.emitter = emitter;
+        }
+
+        public synchronized void emitSearch() {
+            if (this.emitter == null) {
+                LOG.error("搜索事件发射器未初始化");
+                UiUtils.uiRun(() -> resultsInfoLabel.setText("搜索功能初始化失败，请重试"));
+                return;
+            }
+            String searchText = searchField.getText();
+            if (searchText == null || searchText.trim().isEmpty()) {
+                UiUtils.uiRun(() -> resultsInfoLabel.setText("请输入搜索内容"));
+                return;
+            }
+            this.emitter.onNext(searchText);
         }
     }
 }
