@@ -1,0 +1,14 @@
+variables:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  TERM: "dumb"
+
+before_script:
+  - chmod +x gradlew
+
+stages:
+  - test
+
+build-test:
+  stage: test
+  image: eclipse-temurin:21
+  script: JADX_BUILD_JAVA_VERSION=11 JADX_TEST_JAVA_VERSION=11 ./gradlew clean build dist distWin

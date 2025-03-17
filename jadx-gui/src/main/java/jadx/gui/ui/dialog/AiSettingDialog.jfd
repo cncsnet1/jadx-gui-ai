@@ -1,0 +1,170 @@
+JFDML JFormDesigner: "8.2.4.0.393" Java: "21.0.5" encoding: "UTF-8"
+
+new FormModel {
+	contentType: "form/swing"
+	root: new FormRoot {
+		add( new FormWindow( "javax.swing.JDialog", new FormLayoutManager( class java.awt.GridBagLayout ) {
+			"$columnSpecs": "0:1.0"
+			"$rowSpecs": "0:1.0, 0"
+			"$hGap": 5
+			"$vGap": 5
+		} ) {
+			name: "this"
+			"title": "AI配置"
+			"resizable": false
+			add( new FormContainer( "javax.swing.JPanel", new FormLayoutManager( class java.awt.GridBagLayout ) ) {
+				name: "panel1"
+				"border": new javax.swing.border.EmptyBorder( 25, 25, 15, 25 )
+				"preferredSize": new java.awt.Dimension( 520, 280 )
+				add( new FormComponent( "javax.swing.JLabel" ) {
+					name: "label1"
+					"text": "API地址:"
+					"font": &SwingDerivedFont0 new com.jformdesigner.model.SwingDerivedFont( null, 1, 0, false )
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"insets": new java.awt.Insets( 8, 5, 8, 12 )
+				} )
+				add( new FormComponent( "javax.swing.JTextField" ) {
+					name: "apiUrlField"
+					"preferredSize": new java.awt.Dimension( 320, 32 )
+					"toolTipText": "输入API服务器地址，例如: https://api.openai.com"
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridx": 1
+					"weightx": 1.0
+					"fill": 2
+					"insets": new java.awt.Insets( 8, 5, 8, 12 )
+				} )
+				add( new FormComponent( "javax.swing.JLabel" ) {
+					name: "urlHelpLabel"
+					"text": "<html><font color='#666666'>输入完整的API服务器地址，包含https://</font></html>"
+					"font": new com.jformdesigner.model.SwingDerivedFont( null, 0, -2, false )
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridy": 1
+					"gridx": 1
+					"insets": new java.awt.Insets( 0, 8, 4, 0 )
+				} )
+				add( new FormComponent( "javax.swing.JLabel" ) {
+					name: "platformsLabel"
+					"text": "<html><font color='#666666'>支持的平台: OpenAI, 硅基流动, DeepSeek, 火山引擎, 阿里云等</font></html>"
+					"font": new com.jformdesigner.model.SwingDerivedFont( null, 0, -2, false )
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridy": 2
+					"gridx": 1
+					"insets": new java.awt.Insets( 0, 8, 12, 0 )
+				} )
+				add( new FormComponent( "javax.swing.JLabel" ) {
+					name: "label2"
+					"text": "API Key:"
+					"font": #SwingDerivedFont0
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridy": 3
+				} )
+				add( new FormComponent( "javax.swing.JTextField" ) {
+					name: "apiKeyField"
+					"preferredSize": new java.awt.Dimension( 300, 30 )
+					"toolTipText": "输入您的API密钥"
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridx": 1
+					"gridy": 3
+					"weightx": 1.0
+					"fill": 2
+				} )
+				add( new FormComponent( "javax.swing.JLabel" ) {
+					name: "keyHelpLabel"
+					"text": "<html><font color='gray'>在API提供商处获取的密钥，请妥善保管</font></html>"
+					"font": new com.jformdesigner.model.SwingDerivedFont( null, 0, -2, false )
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridy": 4
+					"gridx": 1
+				} )
+				add( new FormComponent( "javax.swing.JLabel" ) {
+					name: "label3"
+					"text": "模型名称:"
+					"font": #SwingDerivedFont0
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridy": 5
+				} )
+				add( new FormComponent( "javax.swing.JTextField" ) {
+					name: "modelField"
+					"preferredSize": new java.awt.Dimension( 300, 30 )
+					"toolTipText": "输入要使用的AI模型名称"
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridx": 1
+					"gridy": 5
+					"weightx": 1.0
+					"fill": 2
+				} )
+				add( new FormComponent( "javax.swing.JLabel" ) {
+					name: "modelHelpLabel"
+					"text": "<html><font color='gray'>例如: gpt-4-turbo-preview, gpt-3.5-turbo</font></html>"
+					"font": new com.jformdesigner.model.SwingDerivedFont( null, 0, -2, false )
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridy": 6
+					"gridx": 1
+				} )
+				add( new FormComponent( "javax.swing.JLabel" ) {
+					name: "platformModelsLabel"
+					"text": "<html><font color='gray'>各平台模型: qianfan-chinese-llama-2, deepseek-chat, chatglm3-6b等</font></html>"
+					"font": new com.jformdesigner.model.SwingDerivedFont( null, 0, -2, false )
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridy": 7
+					"gridx": 1
+				} )
+				add( new FormComponent( "javax.swing.JLabel" ) {
+					name: "label4"
+					"text": "最大Token:"
+					"font": #SwingDerivedFont0
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridy": 8
+				} )
+				add( new FormComponent( "javax.swing.JTextField" ) {
+					name: "maxTokenField"
+					"preferredSize": new java.awt.Dimension( 300, 30 )
+					"toolTipText": "设置AI响应的最大Token数量"
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridx": 1
+					"gridy": 8
+					"weightx": 1.0
+					"fill": 2
+				} )
+				add( new FormComponent( "javax.swing.JLabel" ) {
+					name: "maxTokenHelpLabel"
+					"text": "<html><font color='gray'>默认值为4096，根据您使用的模型可以适当调整</font></html>"
+					"font": new com.jformdesigner.model.SwingDerivedFont( null, 0, -2, false )
+				}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+					"gridy": 9
+					"gridx": 1
+				} )
+			}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+				"insets": new java.awt.Insets( 0, 0, 10, 0 )
+			} )
+			add( new FormContainer( "javax.swing.JPanel", new FormLayoutManager( class java.awt.FlowLayout ) {
+				"alignment": 1
+				"hgap": 25
+				"vgap": 10
+			} ) {
+				name: "panel2"
+				"border": new javax.swing.border.EmptyBorder( 5, 0, 15, 0 )
+				add( new FormComponent( "javax.swing.JButton" ) {
+					name: "button1"
+					"text": "保存"
+					"preferredSize": new java.awt.Dimension( 90, 34 )
+					"font": new com.jformdesigner.model.SwingDerivedFont( null, 1, 0, false )
+					addEvent( new FormEvent( "java.awt.event.MouseListener", "mouseClicked", "button1MouseClicked", true ) )
+				} )
+				add( new FormComponent( "javax.swing.JButton" ) {
+					name: "button2"
+					"text": "关闭"
+					"preferredSize": new java.awt.Dimension( 90, 34 )
+					"font": new com.jformdesigner.model.SwingDerivedFont( null, 1, 0, false )
+					addEvent( new FormEvent( "java.awt.event.MouseListener", "mouseClicked", "button2MouseClicked", true ) )
+				} )
+			}, new FormLayoutConstraints( class com.jformdesigner.runtime.GridBagConstraintsEx ) {
+				"gridy": 1
+				"fill": 3
+			} )
+		}, new FormLayoutConstraints( null ) {
+			"location": new java.awt.Point( 0, 0 )
+			"size": new java.awt.Dimension( 500, 565 )
+		} )
+	}
+}
