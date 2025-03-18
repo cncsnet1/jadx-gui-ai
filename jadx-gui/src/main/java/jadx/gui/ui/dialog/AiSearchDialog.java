@@ -1,5 +1,45 @@
 package jadx.gui.ui.dialog;
 
+
+import com.formdev.flatlaf.FlatClientProperties;
+import io.reactivex.BackpressureStrategy;
+import io.reactivex.Emitter;
+import io.reactivex.Flowable;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
+import jadx.api.JavaClass;
+import jadx.gui.search.SearchTask;
+import jadx.gui.treemodel.JClass;
+import jadx.gui.treemodel.JNode;
+import jadx.gui.ui.MainWindow;
+import jadx.gui.ui.panel.ProgressPanel;
+import jadx.gui.utils.NLS;
+import jadx.gui.utils.TextStandardActions;
+import jadx.gui.utils.UiUtils;
+import jadx.gui.utils.ai.AIHttpUtils;
+import jadx.gui.utils.rx.RxUtils;
+import jadx.gui.jobs.ITaskProgress;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.WindowConstants;
+import javax.swing.event.ChangeListener;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -7,12 +47,9 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -23,68 +60,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JLabel;
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
-import javax.swing.WindowConstants;
-import javax.swing.event.ChangeListener;
-
-import jadx.gui.ui.panel.ProgressPanel;
-import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.formdev.flatlaf.FlatClientProperties;
-import com.formdev.flatlaf.icons.FlatSearchWithHistoryIcon;
-
-import io.reactivex.BackpressureStrategy;
-import io.reactivex.Emitter;
-import io.reactivex.Flowable;
-import io.reactivex.disposables.Disposable;
-import io.reactivex.schedulers.Schedulers;
-import jadx.api.JavaClass;
-import jadx.api.JavaPackage;
-import jadx.core.utils.ListUtils;
-import jadx.gui.jobs.ITaskInfo;
-import jadx.gui.jobs.ITaskProgress;
-import jadx.gui.search.SearchSettings;
-import jadx.gui.search.SearchTask;
-import jadx.gui.search.providers.ClassSearchProvider;
-import jadx.gui.search.providers.CodeSearchProvider;
-import jadx.gui.search.providers.CommentSearchProvider;
-import jadx.gui.search.providers.FieldSearchProvider;
-import jadx.gui.search.providers.MergedSearchProvider;
-import jadx.gui.search.providers.MethodSearchProvider;
-import jadx.gui.treemodel.JClass;
-import jadx.gui.treemodel.JNode;
-import jadx.gui.treemodel.JResource;
-import jadx.gui.ui.MainWindow;
-
-import static jadx.gui.ui.dialog.SearchDialog.SearchOptions.ACTIVE_TAB;
-import static jadx.gui.ui.dialog.SearchDialog.SearchOptions.CLASS;
-import static jadx.gui.ui.dialog.SearchDialog.SearchOptions.CODE;
 import static jadx.gui.ui.dialog.SearchDialog.SearchOptions.COMMENT;
-import static jadx.gui.ui.dialog.SearchDialog.SearchOptions.FIELD;
-import static jadx.gui.ui.dialog.SearchDialog.SearchOptions.IGNORE_CASE;
-import static jadx.gui.ui.dialog.SearchDialog.SearchOptions.METHOD;
-import static jadx.gui.ui.dialog.SearchDialog.SearchOptions.USE_REGEX;
-
-import jadx.gui.utils.JumpPosition;
-import jadx.gui.utils.NLS;
-import jadx.gui.utils.TextStandardActions;
-import jadx.gui.utils.UiUtils;
-import jadx.gui.utils.layout.WrapLayout;
-import jadx.gui.utils.rx.RxUtils;
-import jadx.gui.utils.ai.AIHttpUtils;
 
 public class AiSearchDialog extends CommonSearchDialog {
     private static final Logger LOG = LoggerFactory.getLogger(AiSearchDialog.class);
@@ -352,23 +328,38 @@ public class AiSearchDialog extends CommonSearchDialog {
                 .collect(Collectors.toList());
 
         // 更新系统提示词
-        systemPrompt = "你是一个专业的代码分析助手，负责帮助用户在Java项目中定位相关代码。\n" +
-                "我会给你以下信息：\n" +
-                "1. 用户的功能描述或查询需求\n" +
-                "2. 项目中所有Java类的完整类名列表" +
-                (packageFilter.isEmpty() ? "" : "(已过滤为" + packageFilter + "包下的类)") + "\n\n" +
-                "请严格按照以下规则进行分析：\n" +
-                "1. 只根据类名进行判断，不要根据包名推测\n" +
-                "2. 类名必须与功能描述有明确的语义关联\n" +
-                "3. 不要返回整个包下的所有类\n" +
-                "4. 如果类名与功能描述关联度不高，不要返回\n" +
-                "5. 返回结果必须是完整的类名，后面跟着命中率(0-100)\n" +
-                "6. 如果当前批次没有相关类，请直接回复\"本批次无相关类\"\n" +
-                "7. 不要解释选择原因，只返回类名和命中率\n" +
-                "8. 类名匹配必须精确，不要使用模糊匹配\n" +
-                "9. 不要返回内部类，除非明确与功能相关\n" +
-                "10. 如果类名包含多个单词，必须与功能描述中的关键词有直接对应关系\n" +
-                "11. 返回格式为：类名|命中率，例如：com.example.MyClass|85\n";
+        systemPrompt = "你是一个专业的Java代码分析专家，负责精确理解用户查询与Java类之间的语义关联。\n\n" +
+                "核心任务：\n" +
+                "1. 深度分析用户查询：\n" +
+                "   - 提取核心功能需求和关键概念\n" +
+                "   - 识别领域特定术语\n" +
+                "   - 理解查询的上下文和目的\n\n" +
+                "2. 类名语义分析：\n" +
+                "   - 深入分析类名中的每个单词\n" +
+                "   - 理解类名暗示的功能和职责\n" +
+                "   - 评估类名与查询的语义匹配度\n\n" +
+                "3. 严格的匹配规则：\n" +
+                "   - 类名必须直接反映查询的核心功能\n" +
+                "   - 拒绝间接或模糊相关的类\n" +
+                "   - 每个返回的类必须能解释其相关性\n\n" +
+                "4. 输出格式要求：\n" +
+                "   必须返回JSON格式数据，格式如下：\n" +
+                "   {\n" +
+                "     \"status\": \"found\",  // 或 \"not_found\"\n" +
+                "     \"results\": [\n" +
+                "       {\n" +
+                "         \"className\": \"完整类名\",\n" +
+                "         \"relevance\": \"相关性解释（至少10个字符）\"\n" +
+                "       }\n" +
+                "     ]\n" +
+                "   }\n" +
+                "   如果没有找到相关类，则返回：\n" +
+                "   {\"status\": \"not_found\"}\n\n" +
+                "5. 禁止事项：\n" +
+                "   - 禁止返回任何不在候选列表中的类名\n" +
+                "   - 禁止返回泛型工具类（除非查询特指）\n" +
+                "   - 禁止基于包名进行推测\n" +
+                "   - 禁止返回非JSON格式的内容\n\n";
     }
 
     private void searchWithAI(String query) {
@@ -398,12 +389,22 @@ public class AiSearchDialog extends CommonSearchDialog {
                 resultsInfoLabel.setText("AI正在分析...");
                 resultsModel.clear();
                 resultsTable.updateTable();
+                progressPane.setProgress(new ITaskProgress() {
+                    @Override
+                    public int progress() {
+                        return 0;
+                    }
+                    @Override
+                    public int total() {
+                        return 100;
+                    }
+                });
+                progressPane.setVisible(true);
             });
 
             // 将所有类名分批处理
             int classesPerBatch = 300; // 增加每批处理的类数量
             Set<String> allRelevantClasses = new HashSet<>();
-            StringBuffer fullAnalysis = new StringBuffer();
 
             // 计算总批次
             int totalBatches = (allFilePaths.size() + classesPerBatch - 1) / classesPerBatch;
@@ -412,7 +413,12 @@ public class AiSearchDialog extends CommonSearchDialog {
             final String packageFilter = packageField != null ? packageField.getText().trim() : "";
             if (!packageFilter.isEmpty()) {
                 UiUtils.uiRun(() -> {
-                    resultsInfoLabel.setText("正在分析 " + packageFilter + " 包下的类...");
+                    resultsInfoLabel.setText(String.format("正在分析 %s 包下的类（共 %d 批）...", 
+                        packageFilter, totalBatches));
+                });
+            } else {
+                UiUtils.uiRun(() -> {
+                    resultsInfoLabel.setText(String.format("正在分析所有类（共 %d 批）...", totalBatches));
                 });
             }
 
@@ -420,6 +426,23 @@ public class AiSearchDialog extends CommonSearchDialog {
                 final int currentBatch = i / classesPerBatch + 1;
                 int end = Math.min(i + classesPerBatch, allFilePaths.size());
                 List<String> batch = allFilePaths.subList(i, end);
+
+                // 更新进度信息
+                final int currentBatchFinal = currentBatch;
+                UiUtils.uiRun(() -> {
+                    resultsInfoLabel.setText(String.format("正在分析第 %d/%d 批（每批 %d 个类）...", 
+                        currentBatchFinal, totalBatches, classesPerBatch));
+                    progressPane.setProgress(new ITaskProgress() {
+                        @Override
+                        public int progress() {
+                            return currentBatchFinal * 100 / totalBatches;
+                        }
+                        @Override
+                        public int total() {
+                            return 100;
+                        }
+                    });
+                });
 
                 // 构建当前批次的消息
                 List<Map<String, String>> messages = new ArrayList<>();
@@ -429,88 +452,130 @@ public class AiSearchDialog extends CommonSearchDialog {
 
                 messages.add(AIHttpUtils.createMessage("system", currentPrompt));
                 messages.add(AIHttpUtils.createMessage("user",
-                    "请严格按照以下要求分析功能描述，从当前批次类名中找出相关的类：\n" +
-                    "1. 只返回与功能描述直接相关的类名\n" +
-                    "2. 每个类名单独一行\n" +
-                    "3. 不要返回无关的类\n" +
-                    "4. 不要解释选择原因\n" +
-                    "5. 如果当前批次没有相关类，请直接回复\"本批次无相关类\"\n\n" +
-                    "当前批次类名列表：\n" +
-                    String.join("\n", batch) + "\n\n" +
-                    "功能描述：\n" + query));
+                        "执行严格语义匹配任务：\n\n" +
+                        "用户查询：\n" + query + "\n\n" +
+                        "候选类列表（必须严格从此列表选择）：\n" + String.join("\n", batch) + "\n\n" +
+                        "严格要求：\n" +
+                        "1. 必须返回规定的JSON格式\n" +
+                        "2. 只能返回上述候选列表中的类名\n" +
+                        "3. 每个类名必须附带相关性解释\n" +
+                        "4. 没有匹配时返回 {\"status\": \"not_found\"}"));
 
                 // 使用StringBuffer来累积当前批次的分析结果
-                StringBuffer batchAnalysis = new StringBuffer();
+                StringBuffer jsonBuffer = new StringBuffer();
+                Gson gson = new Gson();
 
                 // AI分析当前批次
                 aiHttpUtils.createStreamingChatCompletionWithCallback(
-                    null,
-                    mainWindow.getSettings().getAiModel(),
-                    messages,
-                    TEMPERATURE,
-                    MAX_TOKENS,
-                    content -> {
-                        batchAnalysis.append(content);
+                        null,
+                        mainWindow.getSettings().getAiModel(),
+                        messages,
+                        TEMPERATURE,
+                        MAX_TOKENS,
+                        content -> {
+                            jsonBuffer.append(content);
 
-                        // 在UI线程中更新结果
-                        UiUtils.uiRun(() -> {
-                            fullAnalysis.append(content);
-                            aiResponseArea.setText(fullAnalysis.toString());
-                            aiResponseArea.setCaretPosition(aiResponseArea.getDocument().getLength());
+                            try {
+                                String jsonStr = jsonBuffer.toString().trim();
+                                // 确保收集到完整的JSON
+                                if (jsonStr.endsWith("}")) {
+                                    // 使用正则表达式清理可能的前缀文本
+                                    jsonStr = jsonStr.replaceAll("^[^{]*", "");
+                                    
+                                    System.out.println("收到AI响应 [批次 " + currentBatch + "/" + totalBatches + "]:");
+                                    System.out.println(jsonStr);
+                                    System.out.println("------------------------");
 
-                            // 从AI响应中提取类名和命中率
-                            String[] lines = batchAnalysis.toString().split("\n");
-                            if (!batchAnalysis.toString().contains("\"本批次无相关类\"")) {
-                                for (String line : lines) {
-                                    line = line.trim();
-                                    // 跳过空行和注释行
-                                    if (line.isEmpty() || line.startsWith("//") || line.startsWith("#")) {
-                                        continue;
-                                    }
-                                    // 解析类名和命中率
-                                    String[] parts = line.split("\\|");
-                                    if (parts.length == 2) {
-                                        String className = parts[0].trim();
-                                        int relevance = Integer.parseInt(parts[1].trim());
-                                        // 精确匹配类名
-                                        for (String batchClassName : batch) {
-                                            if (className.equals(batchClassName)) {
-                                                allRelevantClasses.add(className + "|" + relevance);
-                                                break;
+                                    JsonObject root = JsonParser.parseString(jsonStr).getAsJsonObject();
+
+                                    if (root.has("status")) {
+                                        String status = root.get("status").getAsString();
+
+                                        if ("not_found".equals(status)) {
+                                            UiUtils.uiRun(() -> {
+                                                aiResponseArea.setText("本批次未找到相关类");
+                                            });
+                                            // 清空buffer，准备接收下一个响应
+                                            jsonBuffer.setLength(0);
+                                            return;
+                                        }
+
+                                        if ("found".equals(status) && root.has("results")) {
+                                            JsonArray results = root.getAsJsonArray("results");
+                                            Set<String> batchValidClasses = new HashSet<>();
+
+                                            for (JsonElement result : results) {
+                                                JsonObject resultObj = result.getAsJsonObject();
+                                                String className = resultObj.get("className").getAsString();
+                                                String relevance = resultObj.get("relevance").getAsString();
+
+                                                System.out.println("处理结果: className=" + className + ", relevance=" + relevance);
+
+                                                if (validateClassName(className) && batch.contains(className)) {
+                                                    batchValidClasses.add(className);
+
+                                                    String finalText = String.format("[批次 %d/%d] 找到相关类: %s\n相关性: %s\n\n",
+                                                        currentBatchFinal, totalBatches, className, relevance);
+                                                    UiUtils.uiRun(() -> {
+                                                        aiResponseArea.append(finalText);
+                                                        aiResponseArea.setCaretPosition(
+                                                            aiResponseArea.getDocument().getLength());
+                                                    });
+                                                }
+                                            }
+
+                                            // 清空buffer，准备接收下一个响应
+                                            jsonBuffer.setLength(0);
+
+                                            if (!batchValidClasses.isEmpty()) {
+                                                System.out.println("\n=== 批次结果处理 ===");
+                                                System.out.println("当前批次找到的类数量: " + batchValidClasses.size());
+                                                
+                                                // 记录添加前的总数
+                                                int beforeSize = allRelevantClasses.size();
+                                                allRelevantClasses.addAll(batchValidClasses);
+                                                int afterSize = allRelevantClasses.size();
+                                                
+                                                System.out.println("结果累积统计:");
+                                                System.out.println("- 添加前总数: " + beforeSize);
+                                                System.out.println("- 添加后总数: " + afterSize);
+                                                System.out.println("- 新增类数量: " + (afterSize - beforeSize));
+                                                System.out.println("=================\n");
+                                                
+                                                updateResultsTable(allRelevantClasses, currentBatchFinal, totalBatches);
+                                            } else {
+                                                // 即使没有找到类，也更新进度
+                                                UiUtils.uiRun(() -> {
+                                                    resultsInfoLabel.setText(String.format("批次 %d/%d 分析完成，暂未找到相关类", 
+                                                        currentBatchFinal, totalBatches));
+                                                });
                                             }
                                         }
                                     }
                                 }
+                            } catch (Exception e) {
+                                LOG.debug("JSON解析未完成或格式错误: {}", e.getMessage());
                             }
-
-                            // 更新结果表格
-                            List<JNode> results = new ArrayList<>();
-                            for (String classInfo : allRelevantClasses) {
-                                String[] parts = classInfo.split("\\|");
-                                String className = parts[0];
-                                int relevance = Integer.parseInt(parts[1]);
-
-                                JavaClass javaClass = mainWindow.getWrapper().searchJavaClassByFullAlias(className);
-                                if (javaClass != null) {
-                                    // 使用NodeCache创建JClass实例
-                                    JClass jClass = new JClass(javaClass, null, mainWindow.getCacheObject().getNodeCache());
-                                    if (jClass != null) {
-                                        // 设置显示名称为类名和命中率
-
-                                        results.add(jClass);
-                                    }
-                                }
-                            }
-                            resultsModel.clear();
-                            resultsModel.addAll(results);
-                            resultsTable.updateTable();
-
-                            resultsInfoLabel.setText("找到 " + results.size() + " 个相关类 (分析第 " +
-                                currentBatch + "/" + totalBatches + " 批)");
                         });
-                    }
-                );
+
+                // 等待当前批次处理完成
+                try {
+                    Thread.sleep(100);  // 给UI更新一个小的间隔
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
+
+            // 搜索完成后的最终更新
+            final int totalResults = allRelevantClasses.size();
+            UiUtils.uiRun(() -> {
+                if (totalResults > 0) {
+                    resultsInfoLabel.setText(String.format("搜索完成，共找到 %d 个相关类", totalResults));
+                } else {
+                    resultsInfoLabel.setText("搜索完成，未找到相关类");
+                }
+                progressPane.setVisible(false);
+            });
 
         } catch (Exception e) {
             LOG.error("AI搜索失败", e);
@@ -521,8 +586,38 @@ public class AiSearchDialog extends CommonSearchDialog {
         }
     }
 
+    private boolean validateClassName(String className) {
+        if (className == null || className.isEmpty()) {
+            return false;
+        }
 
+        // 基本格式检查
+        if (!className.contains(".") ||
+            className.startsWith(".") ||
+            className.endsWith(".") ||
+            className.contains("..")) {
+            return false;
+        }
 
+        // 检查是否包含无效字符
+        if (className.contains(" ") ||
+            className.contains("-") ||
+            className.contains("*") ||
+            className.contains("?") ||
+            className.contains("!")) {
+            return false;
+        }
+
+        // 验证Java命名规范
+        String[] parts = className.split("\\.");
+        for (String part : parts) {
+            if (!part.matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     @Override
     protected void openItem(JNode node) {
@@ -758,5 +853,59 @@ public class AiSearchDialog extends CommonSearchDialog {
             }
             this.emitter.onNext(searchText);
         }
+    }
+
+    private void updateResultsTable(Set<String> classNames, int currentBatch, int totalBatches) {
+        System.out.println("\n=== 更新结果表格 ===");
+        System.out.println("当前批次: " + currentBatch + "/" + totalBatches);
+        System.out.println("待处理类总数: " + classNames.size());
+        
+        List<JNode> results = new ArrayList<>();
+        int successCount = 0;
+        final int[] failCount = {0};  // 使用数组来存储计数，使其可以在lambda中修改
+        
+        for (String className : classNames) {
+            try {
+                JavaClass javaClass = mainWindow.getWrapper().searchJavaClassByFullAlias(className);
+                if (javaClass != null) {
+                    JClass jClass = new JClass(javaClass, null, mainWindow.getCacheObject().getNodeCache());
+                    if (jClass != null) {
+                        results.add(jClass);
+                        successCount++;
+                    } else {
+                        System.out.println("警告: 无法为类创建JClass对象: " + className);
+                        failCount[0]++;
+                    }
+                } else {
+                    System.out.println("警告: 找不到类: " + className);
+                    failCount[0]++;
+                }
+            } catch (Exception e) {
+                System.out.println("错误: 处理类时出错: " + className + ", 原因: " + e.getMessage());
+                failCount[0]++;
+            }
+        }
+
+        System.out.println("处理结果统计:");
+        System.out.println("- 成功添加类数量: " + successCount);
+        System.out.println("- 处理失败类数量: " + failCount[0]);
+        System.out.println("=================\n");
+
+        final int finalSuccessCount = successCount;
+        UiUtils.uiRun(() -> {
+            resultsModel.clear();
+            resultsModel.addAll(results);
+            resultsTable.updateTable();
+            if (currentBatch == totalBatches) {
+                resultsInfoLabel.setText(String.format("搜索完成，成功加载 %d 个相关类%s", 
+                    finalSuccessCount,
+                    failCount[0] > 0 ? String.format("（%d个类加载失败）", failCount[0]) : ""));
+                progressPane.setVisible(false);
+            } else {
+                resultsInfoLabel.setText(String.format("批次 %d/%d，已找到 %d 个相关类%s", 
+                    currentBatch, totalBatches, finalSuccessCount,
+                    failCount[0] > 0 ? String.format("（%d个类加载失败）", failCount[0]) : ""));
+            }
+        });
     }
 }
