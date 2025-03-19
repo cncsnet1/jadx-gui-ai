@@ -43,7 +43,7 @@ public final class TranslateAction extends JNodeAction {
 		String apiKey = mainWindow.getSettings().getAiApiKey();
 
 		if (apiUrl == null || apiUrl.trim().isEmpty() ||
-			apiKey == null || apiKey.trim().isEmpty()) {
+				apiKey == null || apiKey.trim().isEmpty()) {
 			LOG.warn("AI配置信息不完整");
 			this.aiHttpUtils = null;
 		} else {
@@ -57,16 +57,16 @@ public final class TranslateAction extends JNodeAction {
 	private String processCodeBlock(String code) {
 		// 移除可能存在的代码块标记，包括多种可能的格式
 		code = code.replaceAll("^```+\\s*(?:java|language)?\\s*", "")  // 处理开头的多个反引号，包括language标记
-				  .replaceAll("```+\\s*$", "")  // 处理结尾的多个反引号
-				  .replaceAll("^`{1,2}\\s*", "")  // 处理开头的单反引号和双反引号
-				  .replaceAll("`{1,2}\\s*$", "")  // 处理结尾的单反引号和双反引号
-				  .replaceAll("(?m)^\\s*```+\\s*$", "")  // 处理行中的多个反引号
-				  .replaceAll("(?m)^\\s*`{1,2}\\s*$", "")  // 处理行中的单反引号和双反引号
-				  .replaceAll("(?m)^\\s*// ... existing code ...\\s*$", "");  // 移除可能存在的existing code标记
-		
+				.replaceAll("```+\\s*$", "")  // 处理结尾的多个反引号
+				.replaceAll("^`{1,2}\\s*", "")  // 处理开头的单反引号和双反引号
+				.replaceAll("`{1,2}\\s*$", "")  // 处理结尾的单反引号和双反引号
+				.replaceAll("(?m)^\\s*```+\\s*$", "")  // 处理行中的多个反引号
+				.replaceAll("(?m)^\\s*`{1,2}\\s*$", "")  // 处理行中的单反引号和双反引号
+				.replaceAll("(?m)^\\s*// ... existing code ...\\s*$", "");  // 移除可能存在的existing code标记
+
 		// 移除多余的空行
 		code = code.replaceAll("(?m)^\\s*$\\n", "");
-		
+
 		// 去重：移除重复的代码块
 		String[] lines = code.split("\n");
 		List<String> uniqueLines = new ArrayList<>();
@@ -75,7 +75,7 @@ public final class TranslateAction extends JNodeAction {
 				uniqueLines.add(line);
 			}
 		}
-		
+
 		return String.join("\n", uniqueLines).trim();
 	}
 
@@ -86,14 +86,14 @@ public final class TranslateAction extends JNodeAction {
 		try {
 			// 解析代码
 			CompilationUnit cu = StaticJavaParser.parse(code);
-			
+
 			// 格式化代码
 			DefaultPrettyPrinter printer = new DefaultPrettyPrinter();
 			String formattedCode = printer.print(cu);
-			
+
 			// 移除可能的多余空行
 			formattedCode = formattedCode.replaceAll("(?m)^\\s*$\\n", "");
-			
+
 			return formattedCode;
 		} catch (Exception e) {
 			LOG.warn("代码格式化失败", e);
@@ -162,9 +162,9 @@ public final class TranslateAction extends JNodeAction {
 		// 检查AI配置
 		if (aiHttpUtils == null) {
 			JOptionPane.showMessageDialog(codeArea,
-				"请先在设置中配置AI接口信息：\n1. AI接口地址\n2. API密钥",
-				"配置缺失",
-				JOptionPane.WARNING_MESSAGE);
+					"请先在设置中配置AI接口信息：\n1. AI接口地址\n2. API密钥",
+					"配置缺失",
+					JOptionPane.WARNING_MESSAGE);
 			return;
 		}
 
@@ -211,8 +211,8 @@ public final class TranslateAction extends JNodeAction {
 
 		JScrollPane scrollPane = new JScrollPane(resultArea);
 		scrollPane.setBorder(BorderFactory.createCompoundBorder(
-			BorderFactory.createTitledBorder("翻译结果"),
-			BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+				BorderFactory.createTitledBorder("翻译结果"),
+				BorderFactory.createEmptyBorder(5, 5, 5, 5)));
 
 		centerPanel.add(scrollPane, BorderLayout.CENTER);
 		mainPanel.add(centerPanel, BorderLayout.CENTER);
@@ -236,20 +236,20 @@ public final class TranslateAction extends JNodeAction {
 
 				// 构建系统提示词
 				String systemPrompt = "你是一个专业的Java代码翻译和注释专家。请将以下Java代码翻译成中文，并添加详细的中文注释。\n\n" +
-					"要求：\n" +
-					"1. 保持代码的原有结构和功能不变\n" +
-					"2. 添加清晰的中文注释，解释代码的功能和实现逻辑\n" +
-					"3. 翻译变量名和方法名时保持其原有含义\n" +
-					"4. 确保翻译后的代码仍然可以正常编译和运行\n" +
-					"5. 保持代码格式规范，包括缩进和空行\n" +
-					"6. 对于复杂的逻辑，添加详细的中文注释说明\n" +
-					"7. 保持原有的代码风格和结构\n" +
-					"8. 注意保持上下文的连贯性\n\n" +
-					"请直接返回翻译后的代码，不要添加任何额外的解释或说明。";
+						"要求：\n" +
+						"1. 保持代码的原有结构和功能不变\n" +
+						"2. 添加清晰的中文注释，解释代码的功能和实现逻辑\n" +
+						"3. 翻译变量名和方法名时保持其原有含义\n" +
+						"4. 确保翻译后的代码仍然可以正常编译和运行\n" +
+						"5. 保持代码格式规范，包括缩进和空行\n" +
+						"6. 对于复杂的逻辑，添加详细的中文注释说明\n" +
+						"7. 保持原有的代码风格和结构\n" +
+						"8. 注意保持上下文的连贯性\n\n" +
+						"请直接返回翻译后的代码，不要添加任何额外的解释或说明。";
 
 				// 分段处理代码
 				List<String> codeSegments = splitCodeWithContext(selectedText);
-				
+
 				// 更新UI显示正在翻译
 				SwingUtilities.invokeLater(() -> {
 					progressLabel.setText("正在翻译代码...");
@@ -278,7 +278,7 @@ public final class TranslateAction extends JNodeAction {
 					// 添加上下文信息
 					if (i > 0) {
 						messages.add(AIHttpUtils.createMessage("system",
-							"这是代码的第 " + currentSegment + " 段，请确保与前面的翻译保持一致性。"));
+								"这是代码的第 " + currentSegment + " 段，请确保与前面的翻译保持一致性。"));
 					}
 
 					messages.add(AIHttpUtils.createMessage("user", codeSegments.get(i)));
@@ -288,18 +288,18 @@ public final class TranslateAction extends JNodeAction {
 					final StringBuilder segmentBuffer = new StringBuilder();
 
 					aiHttpUtils.createStreamingChatCompletionWithCallback(
-						mainWindow.getSettings().getAiModel(),
-						messages,
-						TEMPERATURE,
-						MAX_TOKENS,
-						translatedText -> {
-							segmentBuffer.append(translatedText);
-							SwingUtilities.invokeLater(() -> {
-								resultArea.setText(translatedBuffer.toString() + segmentBuffer.toString());
-								resultArea.setCaretPosition(resultArea.getDocument().getLength());
-								progressBar.setString(String.format("正在处理第 %d/%d 段...", currentSegment, totalSegments));
-							});
-						}
+							mainWindow.getSettings().getAiModel(),
+							messages,
+							TEMPERATURE,
+							MAX_TOKENS,
+							translatedText -> {
+								segmentBuffer.append(translatedText);
+								SwingUtilities.invokeLater(() -> {
+									resultArea.setText(translatedBuffer.toString() + segmentBuffer.toString());
+									resultArea.setCaretPosition(resultArea.getDocument().getLength());
+									progressBar.setString(String.format("正在处理第 %d/%d 段...", currentSegment, totalSegments));
+								});
+							}
 					);
 
 					// 等待当前段翻译完成，设置更短的超时时间
@@ -363,9 +363,9 @@ public final class TranslateAction extends JNodeAction {
 						} catch (Exception ex) {
 							LOG.error("替换代码时出错", ex);
 							JOptionPane.showMessageDialog(progressDialog,
-								"替换代码失败: " + ex.getMessage(),
-								"错误",
-								JOptionPane.ERROR_MESSAGE);
+									"替换代码失败: " + ex.getMessage(),
+									"错误",
+									JOptionPane.ERROR_MESSAGE);
 						}
 					});
 
@@ -382,9 +382,9 @@ public final class TranslateAction extends JNodeAction {
 				SwingUtilities.invokeLater(() -> {
 					progressDialog.dispose();
 					JOptionPane.showMessageDialog(codeArea,
-						"翻译失败: " + e.getMessage(),
-						"错误",
-						JOptionPane.ERROR_MESSAGE);
+							"翻译失败: " + e.getMessage(),
+							"错误",
+							JOptionPane.ERROR_MESSAGE);
 				});
 			}
 		}).start();

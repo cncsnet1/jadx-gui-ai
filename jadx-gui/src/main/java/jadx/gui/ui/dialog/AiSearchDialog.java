@@ -191,26 +191,26 @@ public class AiSearchDialog extends CommonSearchDialog {
                 searchDisposable.dispose();
                 searchDisposable = null;
             }
-            
+
             // 移除活动标签页监听器
             removeActiveTabListener();
-            
+
             // 停止搜索任务
             stopSearchTask();
-            
+
             // 清理AI相关资源
             if (aiHttpUtils != null) {
                 aiHttpUtils.cancelAllRequests();  // 取消所有正在进行的AI请求
                 aiHttpUtils = null;
             }
-            
+
             // 清理其他资源
             allFilePaths.clear();
             classDescriptions.clear();
             if (aiResponseArea != null) {
                 aiResponseArea.setText("");
             }
-            
+
             // 等待后台任务完成
             searchBackgroundExecutor.execute(() -> {
                 try {
@@ -416,7 +416,7 @@ public class AiSearchDialog extends CommonSearchDialog {
         try {
             // 重置AI工具状态
             aiHttpUtils.reset();
-            
+
             // 重新收集并过滤文件列表
             collectAllFilePaths();
 
@@ -494,7 +494,7 @@ public class AiSearchDialog extends CommonSearchDialog {
                         "严格要求：\n" +
                         "1. 必须返回规定的JSON格式\n" +
                         "2. 只能返回上述候选列表中的类名\n" +
-                        "3. 每个类名必须附带相关性解释\n" +
+                        "3. 每个类名必须附带中文的相关性解释\n" +
                         "4. 没有匹配时返回 {\"status\": \"not_found\"}"));
 
                 // 使用StringBuffer来累积当前批次的分析结果

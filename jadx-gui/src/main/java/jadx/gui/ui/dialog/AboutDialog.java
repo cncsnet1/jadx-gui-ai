@@ -41,8 +41,11 @@ public class AboutDialog extends JDialog {
 		Color accentColor = new Color(88, 166, 255);  // 强调色
 
 		// Logo部分
-		URL logoURL = getClass().getResource("/logos/jadx-logo-48px.png");  // 使用更大的logo
-		Icon logo = new ImageIcon(logoURL, "jadx logo");
+		URL logoURL = getClass().getResource("/logos/jadx-logo-48px.png");
+		Icon logo = null;
+		if (logoURL != null) {
+			logo = new ImageIcon(logoURL, "jadx logo");
+		}
 
 		JLabel name = new JLabel("JADX-GUI-AI", logo, SwingConstants.CENTER);  // 大写显示更专业
 		name.setFont(titleFont);
@@ -73,7 +76,10 @@ public class AboutDialog extends JDialog {
 		socialPanel.setBackground(null);
 
 		URL githubIconURL = getClass().getResource("/logos/Github.png");
-		Icon githubIcon = new ImageIcon(githubIconURL, "GitHub");
+		Icon githubIcon = null;
+		if (githubIconURL != null) {
+			githubIcon = new ImageIcon(githubIconURL, "GitHub");
+		}
 		JLabel githubLabel = new JLabel("在 GitHub 上查看", githubIcon, SwingConstants.LEFT);
 		githubLabel.setFont(normalFont);
 		githubLabel.setForeground(primaryColor);
