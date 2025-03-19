@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import com.google.gson.JsonArray;
@@ -30,6 +32,7 @@ public class AIHttpUtils {
 
 	private final String apiKey;
 	private final HttpClient httpClient;
+	private volatile boolean isCancelled = false;
 
 	public AIHttpUtils(String baseUrl, String apiKey) {
 		this.apiKey = apiKey;
@@ -37,6 +40,20 @@ public class AIHttpUtils {
 		this.httpClient = HttpClient.newBuilder()
 				.connectTimeout(Duration.ofSeconds(TIMEOUT_SECONDS))
 				.build();
+	}
+
+	public void cancelAllRequests() {
+		isCancelled = true;
+	}
+
+	public void reset() {
+		isCancelled = false;
+	}
+
+	private void checkCancelled() throws InterruptedException {
+		if (isCancelled) {
+			throw new InterruptedException("请求已被取消");
+		}
 	}
 
 	/**
@@ -231,6 +248,7 @@ public class AIHttpUtils {
 	public void createStreamingChatCompletion(String apiUrl, String model, List<Map<String, String>> messages,
 											  double temperature, int maxTokens,
 											  StreamResponseHandler streamHandler) throws IOException, InterruptedException {
+		checkCancelled();
 		JsonObject requestBody = new JsonObject();
 		requestBody.addProperty("model", model);
 
@@ -264,31 +282,39 @@ public class AIHttpUtils {
 					.body()
 					.filter(line -> !line.isEmpty() && !line.equals("[DONE]"))
 					.forEach(line -> {
+						try {
+							checkCancelled();
+							// 移除 "data: " 前缀（如果有）
+							String jsonData = line;
+							if (line.startsWith("data: ")) {
+								jsonData = line.substring(6);
+							}
 
-						// 移除 "data: " 前缀（如果有）
-						String jsonData = line;
-						if (line.startsWith("data: ")) {
-							jsonData = line.substring(6);
-						}
-
-						JsonElement jsonElement = JsonParser.parseString(jsonData);
-						if (jsonElement.isJsonObject()) {
-							JsonObject responseJson = jsonElement.getAsJsonObject();
-							if (responseJson.has("choices") && responseJson.getAsJsonArray("choices").size() > 0) {
-								JsonObject choice = responseJson.getAsJsonArray("choices").get(0).getAsJsonObject();
-								if (choice.has("delta") && choice.getAsJsonObject("delta").has("content")) {
-									String content = choice.getAsJsonObject("delta").get("content").getAsString();
-									streamHandler.onContent(content);
+							JsonElement jsonElement = JsonParser.parseString(jsonData);
+							if (jsonElement.isJsonObject()) {
+								JsonObject responseJson = jsonElement.getAsJsonObject();
+								if (responseJson.has("choices") && responseJson.getAsJsonArray("choices").size() > 0) {
+									JsonObject choice = responseJson.getAsJsonArray("choices").get(0).getAsJsonObject();
+									if (choice.has("delta") && choice.getAsJsonObject("delta").has("content")) {
+										String content = choice.getAsJsonObject("delta").get("content").getAsString();
+										streamHandler.onContent(content);
+									}
 								}
 							}
+						} catch (InterruptedException e) {
+							Thread.currentThread().interrupt();
+							throw new RuntimeException("请求被取消", e);
 						}
-
 					});
 
-			streamHandler.onComplete();
+			if (!isCancelled) {
+				streamHandler.onComplete();
+			}
 		} catch (Exception e) {
-			System.out.println("处理流式响应时出错: " + e.getMessage());
-			streamHandler.onError(e);
+			if (!isCancelled) {
+				System.out.println("处理流式响应时出错: " + e.getMessage());
+				streamHandler.onError(e);
+			}
 		}
 	}
 
@@ -398,9 +424,7 @@ public class AIHttpUtils {
 															java.util.function.Consumer<String> contentConsumer)
 			throws IOException, InterruptedException {
 		StringBuilder fullResponse = new StringBuilder();
-
-		// 创建一个计数器来跟踪是否完成
-		final boolean[] completed = {false};
+		CountDownLatch latch = new CountDownLatch(1);
 		final Exception[] error = {null};
 
 		createStreamingChatCompletion(apiUrl, model, messages, temperature, maxTokens, new StreamResponseHandler() {
@@ -413,18 +437,30 @@ public class AIHttpUtils {
 			@Override
 			public void onError(Exception e) {
 				error[0] = e;
-				completed[0] = true;
+				latch.countDown();
 			}
 
 			@Override
 			public void onComplete() {
-				completed[0] = true;
+				latch.countDown();
 			}
 		});
 
-		// 等待响应完成
-		while (!completed[0]) {
-			Thread.sleep(10);
+		// 等待响应完成或超时
+		try {
+			if (!latch.await(10, TimeUnit.SECONDS)) {
+				throw new IOException("请求超时");
+			}
+		} catch (InterruptedException e) {
+			if (isCancelled) {
+				throw new InterruptedException("请求已被取消");
+			}
+			throw e;
+		}
+
+		// 如果请求被取消，抛出中断异常
+		if (isCancelled) {
+			throw new InterruptedException("请求已被取消");
 		}
 
 		// 如果有错误，抛出异常

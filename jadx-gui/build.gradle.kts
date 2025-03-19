@@ -12,6 +12,11 @@ dependencies {
 	implementation(project(":jadx-cli"))
 	implementation(project(":jadx-plugins-tools"))
 	implementation(project(":jadx-commons:jadx-app-commons"))
+	implementation ("org.commonmark:commonmark:0.21.0")
+
+	// Java code formatter
+	implementation("com.github.javaparser:javaparser-core:3.25.9")
+	implementation("com.github.javaparser:javaparser-symbol-solver-core:3.25.9")
 
 	// import mappings
 	implementation(project(":jadx-plugins:jadx-rename-mappings"))
