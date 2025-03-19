@@ -17,6 +17,32 @@
   - 代码结构重构建议
   - 安全漏洞检测
 
+### 功能演示
+
+
+#### AI的API KEY 设置页面
+![智能代码分析](docs/images/setting.png)
+
+
+#### AI 智能搜索界面
+![AI 辅助界面](docs/images/aisearch.png)
+
+
+#### 智能代码菜单
+![智能代码分析](docs/images/contextmenu.png)
+
+
+#### AI代码注释/翻译
+##### 翻译中
+![智能代码分析](docs/images/tring.png)
+
+##### 翻译结果
+![智能代码分析](docs/images/trresult.png)
+
+#### AI代码安全审计
+![智能代码分析](docs/images/sec.png)
+
+
 **jadx-gui-ai 特性：**
 - JADX-GUI 原有功能:
   - 使用语法高亮查看反编译的代码

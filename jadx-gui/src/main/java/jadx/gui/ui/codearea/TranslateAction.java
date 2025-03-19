@@ -32,8 +32,8 @@ public final class TranslateAction extends JNodeAction {
 	private final AIHttpUtils aiHttpUtils;
 	private static final int MAX_TOKENS = 4096;
 	private static final double TEMPERATURE = 0.7;
-	private static final int MAX_CODE_LENGTH = 2000; // 每段代码的最大长度
-	private static final int CONTEXT_LINES = 5; // 上下文行数
+	private static final int MAX_CODE_LENGTH = 4000; // 每段代码的最大长度
+	private static final int CONTEXT_LINES = 15; // 增加上下文行数
 	private MainWindow mainWindow;
 
 	public TranslateAction(CodeArea codeArea) {
@@ -56,11 +56,27 @@ public final class TranslateAction extends JNodeAction {
 	 */
 	private String processCodeBlock(String code) {
 		// 移除可能存在的代码块标记，包括多种可能的格式
-		code = code.replaceAll("^```(?:java)?\\s*", "")
-				  .replaceAll("```\\s*$", "")
-				  .replaceAll("^`{3,}(?:java)?\\s*", "")
-				  .replaceAll("`{3,}\\s*$", "");
-		return code.trim();
+		code = code.replaceAll("^```+\\s*(?:java|language)?\\s*", "")  // 处理开头的多个反引号，包括language标记
+				  .replaceAll("```+\\s*$", "")  // 处理结尾的多个反引号
+				  .replaceAll("^`{1,2}\\s*", "")  // 处理开头的单反引号和双反引号
+				  .replaceAll("`{1,2}\\s*$", "")  // 处理结尾的单反引号和双反引号
+				  .replaceAll("(?m)^\\s*```+\\s*$", "")  // 处理行中的多个反引号
+				  .replaceAll("(?m)^\\s*`{1,2}\\s*$", "")  // 处理行中的单反引号和双反引号
+				  .replaceAll("(?m)^\\s*// ... existing code ...\\s*$", "");  // 移除可能存在的existing code标记
+		
+		// 移除多余的空行
+		code = code.replaceAll("(?m)^\\s*$\\n", "");
+		
+		// 去重：移除重复的代码块
+		String[] lines = code.split("\n");
+		List<String> uniqueLines = new ArrayList<>();
+		for (String line : lines) {
+			if (!uniqueLines.contains(line)) {
+				uniqueLines.add(line);
+			}
+		}
+		
+		return String.join("\n", uniqueLines).trim();
 	}
 
 	/**
@@ -96,6 +112,7 @@ public final class TranslateAction extends JNodeAction {
 		while (currentIndex < lines.length) {
 			StringBuilder segment = new StringBuilder();
 			int segmentLength = 0;
+			int startIndex = currentIndex;
 
 			// 添加前文上下文
 			for (int i = Math.max(0, currentIndex - CONTEXT_LINES); i < currentIndex; i++) {
@@ -114,12 +131,20 @@ public final class TranslateAction extends JNodeAction {
 				currentIndex++;
 			}
 
-			// 添加后文上下文
+			// 添加后文上下文（不包含已经处理过的行）
 			for (int i = currentIndex; i < Math.min(lines.length, currentIndex + CONTEXT_LINES); i++) {
 				segment.append(lines[i]).append("\n");
 			}
 
-			segments.add(segment.toString().trim());
+			// 只有当段中有实际内容时才添加
+			if (segment.length() > 0) {
+				segments.add(segment.toString().trim());
+			}
+
+			// 如果当前段没有包含任何新行，则强制前进一行
+			if (currentIndex == startIndex) {
+				currentIndex++;
+			}
 		}
 
 		return segments;
@@ -146,6 +171,8 @@ public final class TranslateAction extends JNodeAction {
 		// 创建进度对话框
 		JDialog progressDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(codeArea), "正在翻译", true);
 		progressDialog.setLayout(new BorderLayout(5, 5));
+		progressDialog.setResizable(true);  // 允许调整大小
+		progressDialog.setMinimumSize(new Dimension(600, 400));  // 设置最小尺寸
 
 		// 创建主面板
 		JPanel mainPanel = new JPanel(new BorderLayout(5, 5));
@@ -153,20 +180,24 @@ public final class TranslateAction extends JNodeAction {
 
 		// 创建顶部面板（进度信息）
 		JPanel topPanel = new JPanel(new BorderLayout(5, 5));
+		topPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 5, 0));  // 添加底部间距
 
 		// 创建进度标签
 		JLabel progressLabel = new JLabel("正在分析代码...");
 		progressLabel.setForeground(new Color(75, 75, 75));
+		progressLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 3, 0));  // 添加底部间距
 		topPanel.add(progressLabel, BorderLayout.NORTH);
 
 		// 创建进度条
 		JProgressBar progressBar = new JProgressBar();
 		progressBar.setIndeterminate(true);
+		progressBar.setStringPainted(true);  // 显示进度文本
+		progressBar.setString("准备中...");
 		topPanel.add(progressBar, BorderLayout.CENTER);
 
 		mainPanel.add(topPanel, BorderLayout.NORTH);
 
-		// 创建中间面板（代码显示）
+		// 创建中间面板（翻译结果显示）
 		JPanel centerPanel = new JPanel(new BorderLayout(5, 5));
 
 		// 创建代码显示区域
@@ -188,6 +219,8 @@ public final class TranslateAction extends JNodeAction {
 
 		// 创建底部面板（按钮）
 		JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 5));
+		bottomPanel.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));  // 添加顶部间距
+
 		mainPanel.add(bottomPanel, BorderLayout.SOUTH);
 
 		progressDialog.add(mainPanel);
@@ -216,17 +249,18 @@ public final class TranslateAction extends JNodeAction {
 
 				// 分段处理代码
 				List<String> codeSegments = splitCodeWithContext(selectedText);
-				StringBuffer translatedBuffer = new StringBuffer();
-
+				
 				// 更新UI显示正在翻译
 				SwingUtilities.invokeLater(() -> {
 					progressLabel.setText("正在翻译代码...");
 					progressBar.setIndeterminate(false);
 					progressBar.setMaximum(codeSegments.size());
 					progressBar.setValue(0);
+					progressBar.setString("0/" + codeSegments.size());
 				});
 
 				// 逐段翻译
+				StringBuilder translatedBuffer = new StringBuilder();
 				for (int i = 0; i < codeSegments.size(); i++) {
 					final int currentSegment = i + 1;
 					final int totalSegments = codeSegments.size();
@@ -235,6 +269,7 @@ public final class TranslateAction extends JNodeAction {
 					SwingUtilities.invokeLater(() -> {
 						progressLabel.setText(String.format("正在翻译第 %d/%d 段代码...", currentSegment, totalSegments));
 						progressBar.setValue(currentSegment);
+						progressBar.setString(String.format("%d/%d", currentSegment, totalSegments));
 					});
 
 					List<Map<String, String>> messages = new ArrayList<>();
@@ -262,13 +297,16 @@ public final class TranslateAction extends JNodeAction {
 							SwingUtilities.invokeLater(() -> {
 								resultArea.setText(translatedBuffer.toString() + segmentBuffer.toString());
 								resultArea.setCaretPosition(resultArea.getDocument().getLength());
+								progressBar.setString(String.format("正在处理第 %d/%d 段...", currentSegment, totalSegments));
 							});
 						}
 					);
 
-					// 等待当前段翻译完成
+					// 等待当前段翻译完成，设置更短的超时时间
 					try {
-						segmentLatch.await(30, TimeUnit.SECONDS);
+						if (!segmentLatch.await(10, TimeUnit.SECONDS)) {
+							LOG.warn("翻译超时，继续处理下一段");
+						}
 					} catch (InterruptedException e) {
 						Thread.currentThread().interrupt();
 						throw new RuntimeException("翻译被中断", e);
@@ -276,14 +314,20 @@ public final class TranslateAction extends JNodeAction {
 
 					// 将当前段添加到最终结果中
 					String segmentResult = segmentBuffer.toString();
-					System.out.println("第 " + currentSegment + " 段翻译结果：\n" + segmentResult);
 					translatedBuffer.append(segmentResult);
+				}
+
+				// 检查是否有错误发生
+				if (translatedBuffer.length() == 0) {
+					throw new RuntimeException("翻译结果为空，请重试");
 				}
 
 				// 翻译完成后更新UI
 				SwingUtilities.invokeLater(() -> {
 					progressLabel.setText("翻译完成");
+					progressBar.setIndeterminate(false);
 					progressBar.setValue(progressBar.getMaximum());
+					progressBar.setString("完成");
 
 					// 添加确认按钮
 					JButton confirmButton = new JButton("确认替换");
@@ -293,8 +337,6 @@ public final class TranslateAction extends JNodeAction {
 							String finalResult = processCodeBlock(translatedBuffer.toString());
 							finalResult = formatCode(finalResult);
 
-							System.out.println("最终翻译结果：\n" + finalResult);
-
 							int start = codeArea.getSelectionStart();
 							int end = codeArea.getSelectionEnd();
 
@@ -303,7 +345,7 @@ public final class TranslateAction extends JNodeAction {
 							codeArea.getDocument().insertString(start, finalResult, null);
 
 							// 重新加载代码区域以保持关联功能
-							if (codeArea.getNode() instanceof  JClass) {
+							if (codeArea.getNode() instanceof JClass) {
 								// 保存当前代码
 								String currentCode = codeArea.getText();
 								// 重新加载类以更新关联信息
