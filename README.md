@@ -1,7 +1,7 @@
 <img src="https://raw.githubusercontent.com/skylot/jadx/master/jadx-gui/src/main/resources/logos/jadx-logo.png" width="64" align="left" />
 
 ## JADX-GUI-AI
-**jadx-gui-ai** - 基于 JADX 的智能反编译工具
+**jadx-gui-ai** - 基于 JADX 的智能反编译工具（持续更新中......）
 
 这是一个在 JADX 基础上增强的智能反编译工具,集成了 AI 辅助功能,可以帮助开发者更好地理解和分析反编译后的代码。
 
