@@ -59,7 +59,7 @@ JADX-GUI-AI 是一个在 JADX 基础上增强的智能反编译工具，集成�
 ## 🎯 功能演示
 
 ### AI 设置
-![AI 设置界面](docs/images/setting.png)
+![AI 设置界面](docs/images/setting1.png)
 > 配置 AI 模型参数和 API 密钥，支持多种 AI 模型选择
 
 ### AI 智能搜索
