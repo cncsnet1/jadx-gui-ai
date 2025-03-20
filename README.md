@@ -64,6 +64,9 @@ JADX-GUI-AI 是一个在 JADX 基础上增强的智能反编译工具，集成�
 
 ### AI 智能搜索
 ![AI 搜索界面](docs/images/aisearch.png)
+#### 搜索结果界面
+![AI 搜索界面](docs/images/aisearch1.png)
+
 > 智能语义搜索，快速定位目标代码
 
 ### 智能代码菜单
@@ -174,6 +177,7 @@ JADX-GUI-AI 是一个在 JADX 基础上增强的智能反编译工具，集成�
 3. 安装依赖
 4. 运行测试
 5. 提交 PR
+
 
 ## 🙏 致谢
 
