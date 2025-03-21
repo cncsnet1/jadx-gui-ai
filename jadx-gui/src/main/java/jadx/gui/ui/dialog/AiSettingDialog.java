@@ -24,7 +24,10 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.JTextArea;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import java.awt.Color;
 
 import jadx.gui.settings.JadxSettings;
 
@@ -48,7 +51,8 @@ public class AiSettingDialog extends JDialog {
 		apiUrlField.setText(settings.getAiApi()==null?"":settings.getAiApi());
 		apiKeyField.setText(settings.getAiApiKey()==null?"":settings.getAiApiKey());
 		modelField.setText(settings.getAiModel()==null?"":settings.getAiModel());
-		maxTokenField.setText(settings.getAiMaxTokens()==null?"":settings.getAiMaxTokens());
+		settings.setAiMaxTokens("4096");
+		maxTokenHelpText.setText("固定使用4096 Token，此值已针对代码分析优化");
     }
 
 	private void button1MouseClicked(MouseEvent e) {
@@ -57,7 +61,7 @@ public class AiSettingDialog extends JDialog {
 		settings.setAiApi(apiUrlField.getText()==null?"":apiUrlField.getText());
 		settings.setAiApiKey(apiKeyField.getText()==null?"":apiKeyField.getText());
 		settings.setAiModel(modelField.getText()==null?"":modelField.getText());
-		settings.setAiMaxTokens(maxTokenField.getText()==null?"":maxTokenField.getText());
+		settings.setAiMaxTokens("4096");
 		settings.saveWindowPos(this);
 		settings.sync();
 
@@ -74,18 +78,15 @@ public class AiSettingDialog extends JDialog {
 		panel1 = new JPanel();
 		label1 = new JLabel();
 		apiUrlField = new JTextField();
-		urlHelpLabel = new JLabel();
-		platformsLabel = new JLabel();
+		urlHelpText = new JTextArea();
 		label2 = new JLabel();
 		apiKeyField = new JTextField();
-		keyHelpLabel = new JLabel();
+		keyHelpText = new JTextArea();
 		label3 = new JLabel();
 		modelField = new JTextField();
-		modelHelpLabel = new JLabel();
-		platformModelsLabel = new JLabel();
+		modelHelpText = new JTextArea();
 		label4 = new JLabel();
-		maxTokenField = new JTextField();
-		maxTokenHelpLabel = new JLabel();
+		maxTokenHelpText = new JTextArea();
 		panel2 = new JPanel();
 		button1 = new JButton();
 		button2 = new JButton();
@@ -120,119 +121,88 @@ public class AiSettingDialog extends JDialog {
 				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
 				new Insets(10, 5, 10, 15), 0, 0));
 
-			//---- urlHelpLabel ----
-			urlHelpLabel.setText("<html><font color='#666666'>请输入完整的API服务器地址，包含https://<br>示例：<br>OpenAI: <a href='https://api.openai.com/v1'>https://api.openai.com/v1</a><br>百度千帆: <a href='https://aip.baidubce.com/v1'>https://aip.baidubce.com/v1</a><br>阿里云: <a href='https://dashscope.aliyuncs.com/v1'>https://dashscope.aliyuncs.com/v1</a><br>火山引擎: <a href='https://open.volcengineapi.com/v1'>https://open.volcengineapi.com/v1</a></font></html>");
-			urlHelpLabel.setFont(urlHelpLabel.getFont().deriveFont(urlHelpLabel.getFont().getSize() - 2f));
-			urlHelpLabel.setCursor(new Cursor(Cursor.HAND_CURSOR));
-			urlHelpLabel.addMouseListener(new MouseAdapter() {
-				@Override
-				public void mouseClicked(MouseEvent e) {
-					String url = e.getSource().toString();
-					if (url.contains("href='")) {
-						url = url.substring(url.indexOf("href='") + 6, url.indexOf("'>"));
-						try {
-							Desktop.getDesktop().browse(new URI(url));
-						} catch (Exception ex) {
-							// 忽略异常
-						}
-					}
-				}
-			});
-			panel1.add(urlHelpLabel, new GridBagConstraints(1, 1, 1, 1, 0.0, 0.0,
-				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
-				new Insets(0, 8, 8, 0), 0, 0));
-
-			//---- platformsLabel ----
-			platformsLabel.setText("<html><font color='#666666'>支持的平台: OpenAI, 百度千帆, DeepSeek, 火山引擎, 阿里云</font></html>");
-			platformsLabel.setFont(platformsLabel.getFont().deriveFont(platformsLabel.getFont().getSize() - 2f));
-			panel1.add(platformsLabel, new GridBagConstraints(1, 2, 1, 1, 0.0, 0.0,
+			//---- urlHelpText ----
+			urlHelpText.setText("支持的平台: 硅基流动（首选）, OpenAI, 火山引擎, 阿里云\n\n请输入完整的API服务器地址，包含https://\n示例：\n硅基流动: https://api.guiji.ai/v1\nOpenAI: https://api.openai.com/v1\n阿里云: https://dashscope.aliyuncs.com/v1\n火山引擎: https://open.volcengineapi.com/v1");
+			urlHelpText.setFont(urlHelpText.getFont().deriveFont(urlHelpText.getFont().getSize() - 2f));
+			urlHelpText.setBackground(new Color(245, 245, 245));
+			urlHelpText.setBorder(new LineBorder(new Color(200, 200, 200)));
+			urlHelpText.setEditable(false);
+			urlHelpText.setLineWrap(true);
+			urlHelpText.setWrapStyleWord(true);
+			panel1.add(urlHelpText, new GridBagConstraints(1, 1, 1, 1, 0.0, 0.0,
 				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
 				new Insets(0, 8, 15, 0), 0, 0));
 
 			//---- label2 ----
 			label2.setText("API Key:");
 			label2.setFont(label2.getFont().deriveFont(label2.getFont().getStyle() | Font.BOLD));
-			panel1.add(label2, new GridBagConstraints(0, 3, 1, 1, 0.0, 0.0,
+			panel1.add(label2, new GridBagConstraints(0, 2, 1, 1, 0.0, 0.0,
 				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
 				new Insets(10, 0, 10, 0), 0, 0));
 
 			//---- apiKeyField ----
 			apiKeyField.setPreferredSize(new Dimension(700, 30));
 			apiKeyField.setToolTipText("输入您的API密钥");
-			panel1.add(apiKeyField, new GridBagConstraints(1, 3, 1, 1, 1.0, 0.0,
+			panel1.add(apiKeyField, new GridBagConstraints(1, 2, 1, 1, 1.0, 0.0,
 				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
 				new Insets(10, 0, 10, 0), 0, 0));
 
-			//---- keyHelpLabel ----
-			keyHelpLabel.setText("<html><font color='gray'>在API提供商处获取的密钥，请妥善保管<br>获取方式：<br>OpenAI: <a href='https://platform.openai.com/api-keys'>https://platform.openai.com/api-keys</a><br>百度千帆: <a href='https://console.bce.baidu.com/qianfan/overview'>https://console.bce.baidu.com/qianfan/overview</a><br>阿里云: <a href='https://dashscope.console.aliyun.com/apiKey'>https://dashscope.console.aliyun.com/apiKey</a><br>火山引擎: <a href='https://console.volcengine.com/iam/keymanage/'>https://console.volcengine.com/iam/keymanage/</a></font></html>");
-			keyHelpLabel.setFont(keyHelpLabel.getFont().deriveFont(keyHelpLabel.getFont().getSize() - 2f));
-			keyHelpLabel.setCursor(new Cursor(Cursor.HAND_CURSOR));
-			keyHelpLabel.addMouseListener(new MouseAdapter() {
-				@Override
-				public void mouseClicked(MouseEvent e) {
-					String url = e.getSource().toString();
-					if (url.contains("href='")) {
-						url = url.substring(url.indexOf("href='") + 6, url.indexOf("'>"));
-						try {
-							Desktop.getDesktop().browse(new URI(url));
-						} catch (Exception ex) {
-							// 忽略异常
-						}
-					}
-				}
-			});
-			panel1.add(keyHelpLabel, new GridBagConstraints(1, 4, 1, 1, 0.0, 0.0,
+			//---- keyHelpText ----
+			keyHelpText.setText("在API提供商处获取的密钥，请妥善保管\n获取方式：\n硅基流动: https://console.guiji.ai/api-keys\nOpenAI: https://platform.openai.com/api-keys\n阿里云: https://dashscope.console.aliyun.com/apiKey\n火山引擎: https://console.volcengine.com/iam/keymanage/");
+			keyHelpText.setFont(keyHelpText.getFont().deriveFont(keyHelpText.getFont().getSize() - 2f));
+			keyHelpText.setBackground(new Color(245, 245, 245));
+			keyHelpText.setBorder(new LineBorder(new Color(200, 200, 200)));
+			keyHelpText.setEditable(false);
+			keyHelpText.setLineWrap(true);
+			keyHelpText.setWrapStyleWord(true);
+			panel1.add(keyHelpText, new GridBagConstraints(1, 3, 1, 1, 0.0, 0.0,
 				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
 				new Insets(0, 0, 15, 0), 0, 0));
 
 			//---- label3 ----
 			label3.setText("模型名称:");
 			label3.setFont(label3.getFont().deriveFont(label3.getFont().getStyle() | Font.BOLD));
-			panel1.add(label3, new GridBagConstraints(0, 5, 1, 1, 0.0, 0.0,
+			panel1.add(label3, new GridBagConstraints(0, 4, 1, 1, 0.0, 0.0,
 				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
 				new Insets(10, 0, 10, 0), 0, 0));
 
 			//---- modelField ----
 			modelField.setPreferredSize(new Dimension(700, 30));
 			modelField.setToolTipText("输入要使用的AI模型名称");
-			panel1.add(modelField, new GridBagConstraints(1, 5, 1, 1, 1.0, 0.0,
+			panel1.add(modelField, new GridBagConstraints(1, 4, 1, 1, 1.0, 0.0,
 				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
 				new Insets(10, 0, 10, 0), 0, 0));
 
-			//---- modelHelpLabel ----
-			modelHelpLabel.setText("<html><font color='gray'>各平台支持的模型示例：<br>OpenAI: gpt-4-turbo-preview, gpt-3.5-turbo<br>百度千帆: qianfan-chinese-llama-2-13b, qianfan-chinese-llama-2-7b<br>阿里云: qwen-max, qwen-plus<br>火山引擎: skylark-chat, skylark-pro</font></html>");
-			modelHelpLabel.setFont(modelHelpLabel.getFont().deriveFont(modelHelpLabel.getFont().getSize() - 2f));
-			panel1.add(modelHelpLabel, new GridBagConstraints(1, 6, 1, 1, 0.0, 0.0,
+			//---- modelHelpText ----
+			modelHelpText.setText("推荐使用授权code类模型: Qwen2.5-Coder-32B-Instruct, gpt-4, qwen-max, skylark-chat等\n\n各平台支持的模型示例：\n硅基流动: Qwen2.5-Coder-32B-Instruct (推荐使用授权code类模型)\nOpenAI: gpt-4-turbo-preview, gpt-3.5-turbo\n阿里云: qwen-max, qwen-plus\n火山引擎: skylark-chat, skylark-pro\n\n注意：请勿使用r1类逻辑模型，可能会导致分析结果不准确");
+			modelHelpText.setFont(modelHelpText.getFont().deriveFont(modelHelpText.getFont().getSize() - 2f));
+			modelHelpText.setBackground(new Color(245, 245, 245));
+			modelHelpText.setBorder(new LineBorder(new Color(200, 200, 200)));
+			modelHelpText.setEditable(false);
+			modelHelpText.setLineWrap(true);
+			modelHelpText.setWrapStyleWord(true);
+			panel1.add(modelHelpText, new GridBagConstraints(1, 5, 1, 1, 0.0, 0.0,
 				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
 				new Insets(0, 0, 15, 0), 0, 0));
-
-			//---- platformModelsLabel ----
-			platformModelsLabel.setText("<html><font color='gray'>各平台模型: qianfan-chinese-llama-2, deepseek-chat, chatglm3-6b等</font></html>");
-			platformModelsLabel.setFont(platformModelsLabel.getFont().deriveFont(platformModelsLabel.getFont().getSize() - 2f));
-			panel1.add(platformModelsLabel, new GridBagConstraints(1, 7, 1, 1, 0.0, 0.0,
-				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
-				new Insets(0, 0, 0, 0), 0, 0));
 
 			//---- label4 ----
 			label4.setText("最大Token:");
 			label4.setFont(label4.getFont().deriveFont(label4.getFont().getStyle() | Font.BOLD));
-			panel1.add(label4, new GridBagConstraints(0, 7, 1, 1, 0.0, 0.0,
+			panel1.add(label4, new GridBagConstraints(0, 6, 1, 1, 0.0, 0.0,
 				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
 				new Insets(10, 0, 10, 0), 0, 0));
 
-			//---- maxTokenField ----
-			maxTokenField.setPreferredSize(new Dimension(700, 30));
-			maxTokenField.setToolTipText("设置AI响应的最大Token数量");
-			panel1.add(maxTokenField, new GridBagConstraints(1, 7, 1, 1, 1.0, 0.0,
+			//---- maxTokenHelpText ----
+			maxTokenHelpText.setText("固定使用4096 Token，此值已针对代码分析优化");
+			maxTokenHelpText.setFont(maxTokenHelpText.getFont().deriveFont(maxTokenHelpText.getFont().getSize() - 2f));
+			maxTokenHelpText.setBackground(new Color(245, 245, 245));
+			maxTokenHelpText.setBorder(new LineBorder(new Color(200, 200, 200)));
+			maxTokenHelpText.setEditable(false);
+			maxTokenHelpText.setLineWrap(true);
+			maxTokenHelpText.setWrapStyleWord(true);
+			panel1.add(maxTokenHelpText, new GridBagConstraints(1, 6, 1, 1, 1.0, 0.0,
 				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
 				new Insets(10, 0, 10, 0), 0, 0));
-
-			//---- maxTokenHelpLabel ----
-			maxTokenHelpLabel.setText("<html><font color='gray'>默认值为4096，根据您使用的模型可以适当调整<br>建议值：<br>OpenAI GPT-4: 4096-8192<br>百度千帆: 2048-4096<br>阿里云: 2048-4096<br>火山引擎: 2048-4096</font></html>");
-			maxTokenHelpLabel.setFont(maxTokenHelpLabel.getFont().deriveFont(maxTokenHelpLabel.getFont().getSize() - 2f));
-			panel1.add(maxTokenHelpLabel, new GridBagConstraints(1, 8, 1, 1, 0.0, 0.0,
-				GridBagConstraints.CENTER, GridBagConstraints.BOTH,
-				new Insets(0, 0, 0, 0), 0, 0));
 		}
 		contentPane.add(panel1, new GridBagConstraints(0, 0, 1, 1, 0.0, 0.0,
 			GridBagConstraints.CENTER, GridBagConstraints.BOTH,
@@ -279,18 +249,15 @@ public class AiSettingDialog extends JDialog {
 	private JPanel panel1;
 	private JLabel label1;
 	private JTextField apiUrlField;
-	private JLabel urlHelpLabel;
-	private JLabel platformsLabel;
+	private JTextArea urlHelpText;
 	private JLabel label2;
 	private JTextField apiKeyField;
-	private JLabel keyHelpLabel;
+	private JTextArea keyHelpText;
 	private JLabel label3;
 	private JTextField modelField;
-	private JLabel modelHelpLabel;
-	private JLabel platformModelsLabel;
+	private JTextArea modelHelpText;
 	private JLabel label4;
-	private JTextField maxTokenField;
-	private JLabel maxTokenHelpLabel;
+	private JTextArea maxTokenHelpText;
 	private JPanel panel2;
 	private JButton button1;
 	private JButton button2;
