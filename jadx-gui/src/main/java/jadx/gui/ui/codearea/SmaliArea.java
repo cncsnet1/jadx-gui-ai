@@ -84,6 +84,8 @@ public final class SmaliArea extends AbstractCodeArea {
 				settings.sync();
 			}
 		});
+
+		//getPopupMenu().add(new SmaliToJavaAction(null));
 		getPopupMenu().add(cbUseSmaliV2);
 		switchModel();
 	}
