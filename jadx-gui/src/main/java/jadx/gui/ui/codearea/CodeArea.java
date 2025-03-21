@@ -112,12 +112,12 @@ public final class CodeArea extends AbstractCodeArea {
 	public void load() {
 		if (getText().isEmpty()) {
 			String codeStr = getCodeInfo().getCodeStr();
-			codeStr = "/*\n" +
-					" * =====================================================\n" +
-					" * 警告：本代码仅用于学习和参考！\n" +
-					" * Warning: This code is for study and reference only!\n" +
-					" * =====================================================\n" +
-					" */\n\n" + codeStr;
+//			codeStr = "/*\n" +
+//					" * =====================================================\n" +
+//					" * 警告：本代码仅用于学习和参考！\n" +
+//					" * Warning: This code is for study and reference only!\n" +
+//					" * =====================================================\n" +
+//					" */\n\n" + codeStr;
 			setText(codeStr);
 			setCaretPosition(0);
 			setLoaded();
