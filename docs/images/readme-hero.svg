@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="480" viewBox="0 0 1440 480" role="img" aria-labelledby="title desc">
+  <title id="title">JADX GUI AI — 让每一次逆向分析，都有据可循</title>
+  <desc id="desc">源码优先的 AI 逆向工作台：在代码中提问，用证据复核，让判断留在项目里。</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#0b1325"/><stop offset="1" stop-color="#142d40"/></linearGradient>
+    <linearGradient id="accent"><stop stop-color="#6ee7dd"/><stop offset="1" stop-color="#80aaff"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#38bdb6" stop-opacity=".14"/><stop offset="1" stop-color="#38bdb6" stop-opacity="0"/></radialGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#b6dfff" stroke-opacity=".035"/></pattern>
+  </defs>
+  <rect width="1440" height="480" rx="24" fill="url(#bg)"/>
+  <rect width="1440" height="480" rx="24" fill="url(#grid)"/>
+  <ellipse cx="1120" cy="230" rx="430" ry="330" fill="url(#glow)"/>
+  <g font-family="Segoe UI, Microsoft YaHei, PingFang SC, sans-serif">
+    <rect x="64" y="52" width="292" height="32" rx="16" fill="#6ee7dd" fill-opacity=".09" stroke="#6ee7dd" stroke-opacity=".25"/>
+    <circle cx="83" cy="68" r="4" fill="#6ee7dd"/>
+    <text x="98" y="74" font-size="12" font-weight="600" letter-spacing="2" fill="#97ece4">SOURCE-FIRST · AI-ASSISTED</text>
+    <text x="60" y="169" font-size="76" font-weight="750" letter-spacing="-3" fill="#f2f7ff">JADX GUI <tspan fill="url(#accent)">AI</tspan></text>
+    <text x="65" y="226" font-size="30" font-weight="600" fill="#e6eefc">让每一次逆向分析，都有据可循。</text>
+    <text x="65" y="277" font-size="18" fill="#9fb1c9">在代码中提问，用证据复核，让判断留在项目里。</text>
+    <g font-size="14" fill="#c4d2e6">
+      <rect x="64" y="327" width="112" height="38" rx="9" fill="#1b2a40" stroke="#304057"/>
+      <text x="87" y="352">多模型连接</text>
+      <rect x="188" y="327" width="112" height="38" rx="9" fill="#1b2a40" stroke="#304057"/>
+      <text x="211" y="352">源码上下文</text>
+      <rect x="312" y="327" width="112" height="38" rx="9" fill="#1b2a40" stroke="#304057"/>
+      <text x="335" y="352">证据调查台</text>
+    </g>
+    <text x="65" y="426" font-size="13" letter-spacing="1" fill="#6f88a5">BUILT ON JADX  /  WINDOWS · macOS · LINUX</text>
+    <g transform="translate(810 62)">
+      <rect width="552" height="326" rx="18" fill="#101e30" stroke="#354760"/>
+      <rect width="552" height="42" rx="18" fill="#19293c"/>
+      <rect y="23" width="552" height="19" fill="#19293c"/>
+      <circle cx="22" cy="21" r="4" fill="#f88b93"/><circle cx="37" cy="21" r="4" fill="#efc87c"/><circle cx="52" cy="21" r="4" fill="#72cbb0"/>
+      <text x="82" y="26" font-size="12" fill="#a8b9cf">TokenStore.java</text>
+      <text x="25" y="83" font-family="Consolas, monospace" font-size="15" fill="#83adff">void <tspan fill="#dce9fc">store(String token) {</tspan></text>
+      <text x="43" y="116" font-family="Consolas, monospace" font-size="15" fill="#dce9fc">preferences.put(<tspan fill="#91ddc3">"session.token"</tspan>, token);</text>
+      <text x="25" y="147" font-family="Consolas, monospace" font-size="15" fill="#dce9fc">}</text>
+      <path d="M26 174H526" stroke="#2a3c53"/>
+      <rect x="24" y="193" width="66" height="25" rx="6" fill="#244456"/>
+      <text x="36" y="211" font-size="12" fill="#8fe4d6">[S1]</text>
+      <text x="105" y="211" font-size="14" font-weight="600" fill="#e4eefb">观察：令牌写入本地偏好存储</text>
+      <text x="27" y="250" font-size="14" fill="#a6bad2">待验证：存储保护、可达入口、退出清理</text>
+      <text x="27" y="284" font-size="13" fill="#6fdcca">源码引用 → 人工复核 → 项目记录</text>
+    </g>
+    <rect x="1115" y="369" width="247" height="53" rx="12" fill="#1c4050" stroke="#387367"/>
+    <circle cx="1143" cy="396" r="10" fill="#8ae8c2"/>
+    <path d="m1138 396 3 3 6-7" fill="none" stroke="#163a38" stroke-width="2"/>
+    <text x="1163" y="401" font-size="14" font-weight="600" fill="#c1f0df">答案可读，依据可查</text>
+  </g>
+</svg>

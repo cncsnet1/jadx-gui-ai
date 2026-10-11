@@ -14,16 +14,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import jadx.gui.ai.AiCancellation;
+import jadx.gui.ai.OpenAiClient;
 
 public class AIHttpUtils {
 	private static final Logger LOG = LoggerFactory.getLogger(AIHttpUtils.class);
@@ -32,7 +33,7 @@ public class AIHttpUtils {
 
 	private final String apiKey;
 	private final HttpClient httpClient;
-	private volatile boolean isCancelled = false;
+	private volatile AiCancellation cancellation = new AiCancellation();
 
 	public AIHttpUtils(String baseUrl, String apiKey) {
 		this.apiKey = apiKey;
@@ -43,17 +44,12 @@ public class AIHttpUtils {
 	}
 
 	public void cancelAllRequests() {
-		isCancelled = true;
+		cancellation.cancel();
 	}
 
 	public void reset() {
-		isCancelled = false;
-	}
-
-	private void checkCancelled() throws InterruptedException {
-		if (isCancelled) {
-			throw new InterruptedException("请求已被取消");
-		}
+		cancellation.cancel();
+		cancellation = new AiCancellation();
 	}
 
 	/**
@@ -68,7 +64,7 @@ public class AIHttpUtils {
 	 * @throws InterruptedException 请求被中断
 	 */
 	public String createChatCompletion(String model, List<Map<String, String>> messages,
-									   double temperature, int maxTokens) throws IOException, InterruptedException {
+			double temperature, int maxTokens) throws IOException, InterruptedException {
 		JsonObject requestBody = new JsonObject();
 		requestBody.addProperty("model", model);
 
@@ -233,288 +229,52 @@ public class AIHttpUtils {
 		return message;
 	}
 
-	/**
-	 * 创建流式文本对话请求
-	 *
-	 * @param apiUrl        API地址，如果为null则使用默认地址
-	 * @param model         模型名称，如 "Qwen/Qwen2.5-72B-Instruct"
-	 * @param messages      对话消息列表
-	 * @param temperature   温度参数，控制随机性，默认0.7
-	 * @param maxTokens     最大生成token数
-	 * @param streamHandler 流式响应处理器，用于处理每个部分的响应
-	 * @throws IOException          网络请求异常
-	 * @throws InterruptedException 请求被中断
-	 */
+	// Compatibility facade for existing AI search callers. Transport and cancellation
+	// are shared with the workbench; no polling or secondary completion latch.
 	public void createStreamingChatCompletion(String apiUrl, String model, List<Map<String, String>> messages,
-											  double temperature, int maxTokens,
-											  StreamResponseHandler streamHandler) throws IOException, InterruptedException {
-		checkCancelled();
-		JsonObject requestBody = new JsonObject();
-		requestBody.addProperty("model", model);
-
-		JsonArray messagesArray = new JsonArray();
-		for (Map<String, String> message : messages) {
-			JsonObject messageObj = new JsonObject();
-			messageObj.addProperty("role", message.get("role"));
-			messageObj.addProperty("content", message.get("content"));
-			messagesArray.add(messageObj);
-		}
-		requestBody.add("messages", messagesArray);
-
-		// 添加可选参数
-		requestBody.addProperty("temperature", temperature);
-		requestBody.addProperty("max_tokens", maxTokens);
-		requestBody.addProperty("top_k", 50);
-		requestBody.addProperty("top_p", 0.7);
-		requestBody.addProperty("stream", true); // 启用流式响应
-
-		// 使用提供的API地址或默认地址
-		String url = apiUrl != null ? apiUrl : BASE_URL + "/chat/completions";
-
-		HttpRequest request = HttpRequest.newBuilder()
-				.uri(URI.create(url))
-				.header("Content-Type", "application/json")
-				.header("Authorization", "Bearer " + apiKey)
-				.POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
-				.build();
+			double temperature, int maxTokens, StreamResponseHandler handler) throws IOException, InterruptedException {
 		try {
-			httpClient.send(request, HttpResponse.BodyHandlers.ofLines())
-					.body()
-					.filter(line -> !line.isEmpty() && !line.equals("[DONE]"))
-					.forEach(line -> {
-						try {
-							checkCancelled();
-							// 移除 "data: " 前缀（如果有）
-							String jsonData = line;
-							if (line.startsWith("data: ")) {
-								jsonData = line.substring(6);
-							}
-
-							JsonElement jsonElement = JsonParser.parseString(jsonData);
-							if (jsonElement.isJsonObject()) {
-								JsonObject responseJson = jsonElement.getAsJsonObject();
-								if (responseJson.has("choices") && responseJson.getAsJsonArray("choices").size() > 0) {
-									JsonObject choice = responseJson.getAsJsonArray("choices").get(0).getAsJsonObject();
-									if (choice.has("delta") && choice.getAsJsonObject("delta").has("content")) {
-										String content = choice.getAsJsonObject("delta").get("content").getAsString();
-										streamHandler.onContent(content);
-									}
-								}
-							}
-						} catch (InterruptedException e) {
-							Thread.currentThread().interrupt();
-							throw new RuntimeException("请求被取消", e);
-						}
-					});
-
-			if (!isCancelled) {
-				streamHandler.onComplete();
-			}
-		} catch (Exception e) {
-			if (!isCancelled) {
-				System.out.println("处理流式响应时出错: " + e.getMessage());
-				streamHandler.onError(e);
-			}
+			createStreamingChatCompletionWithCallback(apiUrl, model, messages, temperature, maxTokens, handler::onContent);
+		} catch (IOException e) {
+			handler.onError(e);
+			return;
 		}
+		handler.onComplete();
 	}
 
-	/**
-	 * 创建流式文本对话请求（使用默认API地址）
-	 *
-	 * @param model         模型名称，如 "Qwen/Qwen2.5-72B-Instruct"
-	 * @param messages      对话消息列表
-	 * @param temperature   温度参数，控制随机性，默认0.7
-	 * @param maxTokens     最大生成token数
-	 * @param streamHandler 流式响应处理器，用于处理每个部分的响应
-	 * @throws IOException          网络请求异常
-	 * @throws InterruptedException 请求被中断
-	 */
 	public void createStreamingChatCompletion(String model, List<Map<String, String>> messages,
-											  double temperature, int maxTokens,
-											  StreamResponseHandler streamHandler) throws IOException, InterruptedException {
-		createStreamingChatCompletion(null, model, messages, temperature, maxTokens, streamHandler);
+			double temperature, int maxTokens, StreamResponseHandler handler) throws IOException, InterruptedException {
+		createStreamingChatCompletion(null, model, messages, temperature, maxTokens, handler);
 	}
 
-	/**
-	 * 创建流式文本对话请求并返回完整响应
-	 *
-	 * @param apiUrl      API地址，如果为null则使用默认地址
-	 * @param model       模型名称，如 "Qwen/Qwen2.5-72B-Instruct"
-	 * @param messages    对话消息列表
-	 * @param temperature 温度参数，控制随机性，默认0.7
-	 * @param maxTokens   最大生成token数
-	 * @return 完整的响应文本
-	 * @throws IOException          网络请求异常
-	 * @throws InterruptedException 请求被中断
-	 */
 	public String createStreamingChatCompletionBlocking(String apiUrl, String model, List<Map<String, String>> messages,
-														double temperature, int maxTokens) throws IOException, InterruptedException {
-		StringBuilder fullResponse = new StringBuilder();
-
-		// 创建一个计数器来跟踪是否完成
-		final boolean[] completed = {false};
-		final Exception[] error = {null};
-
-		createStreamingChatCompletion(apiUrl, model, messages, temperature, maxTokens, new StreamResponseHandler() {
-			@Override
-			public void onContent(String contentChunk) {
-				fullResponse.append(contentChunk);
-			}
-
-			@Override
-			public void onError(Exception e) {
-				error[0] = e;
-				completed[0] = true;
-			}
-
-			@Override
-			public void onComplete() {
-				completed[0] = true;
-			}
+			double temperature, int maxTokens) throws IOException, InterruptedException {
+		return createStreamingChatCompletionWithCallback(apiUrl, model, messages, temperature, maxTokens, chunk -> {
 		});
-
-		// 等待响应完成
-		while (!completed[0]) {
-			Thread.sleep(10);
-		}
-
-		// 如果有错误，抛出异常
-		if (error[0] != null) {
-			if (error[0] instanceof IOException) {
-				throw (IOException) error[0];
-			} else {
-				throw new IOException("流式响应处理错误", error[0]);
-			}
-		}
-
-		return fullResponse.toString();
 	}
 
-	/**
-	 * 创建流式文本对话请求并返回完整响应（使用默认API地址）
-	 *
-	 * @param model       模型名称，如 "Qwen/Qwen2.5-72B-Instruct"
-	 * @param messages    对话消息列表
-	 * @param temperature 温度参数，控制随机性，默认0.7
-	 * @param maxTokens   最大生成token数
-	 * @return 完整的响应文本
-	 * @throws IOException          网络请求异常
-	 * @throws InterruptedException 请求被中断
-	 */
 	public String createStreamingChatCompletionBlocking(String model, List<Map<String, String>> messages,
-														double temperature, int maxTokens) throws IOException, InterruptedException {
+			double temperature, int maxTokens) throws IOException, InterruptedException {
 		return createStreamingChatCompletionBlocking(null, model, messages, temperature, maxTokens);
 	}
 
-	/**
-	 * 创建流式文本对话请求并实时处理每个响应片段
-	 *
-	 * @param apiUrl          API地址，如果为null则使用默认地址
-	 * @param model           模型名称，如 "Qwen/Qwen2.5-72B-Instruct"
-	 * @param messages        对话消息列表
-	 * @param temperature     温度参数，控制随机性，默认0.7
-	 * @param maxTokens       最大生成token数
-	 * @param contentConsumer 内容处理函数，用于处理每个响应片段
-	 * @return 完整的响应文本
-	 * @throws IOException          网络请求异常
-	 * @throws InterruptedException 请求被中断
-	 */
 	public String createStreamingChatCompletionWithCallback(String apiUrl, String model, List<Map<String, String>> messages,
-															double temperature, int maxTokens,
-															java.util.function.Consumer<String> contentConsumer)
-			throws IOException, InterruptedException {
-		StringBuilder fullResponse = new StringBuilder();
-		CountDownLatch latch = new CountDownLatch(1);
-		final Exception[] error = {null};
-
-		createStreamingChatCompletion(apiUrl, model, messages, temperature, maxTokens, new StreamResponseHandler() {
-			@Override
-			public void onContent(String contentChunk) {
-				fullResponse.append(contentChunk);
-				contentConsumer.accept(contentChunk);
-			}
-
-			@Override
-			public void onError(Exception e) {
-				error[0] = e;
-				latch.countDown();
-			}
-
-			@Override
-			public void onComplete() {
-				latch.countDown();
-			}
-		});
-
-		// 等待响应完成或超时
-		try {
-			if (!latch.await(10, TimeUnit.SECONDS)) {
-				throw new IOException("请求超时");
-			}
-		} catch (InterruptedException e) {
-			if (isCancelled) {
-				throw new InterruptedException("请求已被取消");
-			}
-			throw e;
-		}
-
-		// 如果请求被取消，抛出中断异常
-		if (isCancelled) {
-			throw new InterruptedException("请求已被取消");
-		}
-
-		// 如果有错误，抛出异常
-		if (error[0] != null) {
-			if (error[0] instanceof IOException) {
-				throw (IOException) error[0];
-			} else {
-				throw new IOException("流式响应处理错误", error[0]);
-			}
-		}
-
-		return fullResponse.toString();
+			double temperature, int maxTokens, Consumer<String> consumer) throws IOException, InterruptedException {
+		AiCancellation token = cancellation;
+		return new OpenAiClient(apiUrl == null ? BASE_URL : apiUrl, apiKey)
+				.stream(model, messages, temperature, maxTokens, token, consumer);
 	}
 
-	/**
-	 * 创建流式文本对话请求并实时处理每个响应片段（使用默认API地址）
-	 *
-	 * @param model           模型名称，如 "Qwen/Qwen2.5-72B-Instruct"
-	 * @param messages        对话消息列表
-	 * @param temperature     温度参数，控制随机性，默认0.7
-	 * @param maxTokens       最大生成token数
-	 * @param contentConsumer 内容处理函数，用于处理每个响应片段
-	 * @return 完整的响应文本
-	 * @throws IOException          网络请求异常
-	 * @throws InterruptedException 请求被中断
-	 */
 	public String createStreamingChatCompletionWithCallback(String model, List<Map<String, String>> messages,
-															double temperature, int maxTokens,
-															java.util.function.Consumer<String> contentConsumer)
-			throws IOException, InterruptedException {
-		return createStreamingChatCompletionWithCallback(null, model, messages, temperature, maxTokens, contentConsumer);
+			double temperature, int maxTokens, Consumer<String> consumer) throws IOException, InterruptedException {
+		return createStreamingChatCompletionWithCallback(null, model, messages, temperature, maxTokens, consumer);
 	}
 
-	/**
-	 * 流式响应处理器接口
-	 */
 	public interface StreamResponseHandler {
-		/**
-		 * 处理内容片段
-		 *
-		 * @param contentChunk 内容片段
-		 */
 		void onContent(String contentChunk);
 
-		/**
-		 * 处理错误
-		 *
-		 * @param e 异常
-		 */
 		void onError(Exception e);
 
-		/**
-		 * 响应完成时调用
-		 */
 		void onComplete();
 	}
 }

@@ -44,6 +44,13 @@ public class CommentDialog extends CommonDialog {
 		dialog.setVisible(true);
 	}
 
+	public static void showDraft(CodeArea codeArea, ICodeComment comment, boolean updateComment, String draft) {
+		CommentDialog dialog = new CommentDialog(codeArea, comment, updateComment);
+		dialog.commentArea.setText(draft);
+		dialog.commentArea.setCaretPosition(0);
+		dialog.setVisible(true);
+	}
+
 	private static void updateCommentsData(CodeArea codeArea, Consumer<List<ICodeComment>> updater) {
 		try {
 			JadxProject project = codeArea.getProject();

@@ -61,7 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -148,7 +148,7 @@ public class AiSearchDialog extends CommonSearchDialog {
     /**
      * Use single thread to do all background work, so additional synchronisation not needed
      */
-    private final Executor searchBackgroundExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService searchBackgroundExecutor = Executors.newSingleThreadExecutor();
 
     private transient AIHttpUtils aiHttpUtils;
     private List<String> allFilePaths = new ArrayList<>();
@@ -185,46 +185,19 @@ public class AiSearchDialog extends CommonSearchDialog {
 
     @Override
     public void dispose() {
-        try {
-            // 先停止所有搜索任务
-            if (searchDisposable != null && !searchDisposable.isDisposed()) {
-                searchDisposable.dispose();
-                searchDisposable = null;
-            }
-
-            // 移除活动标签页监听器
-            removeActiveTabListener();
-
-            // 停止搜索任务
-            stopSearchTask();
-
-            // 清理AI相关资源
-            if (aiHttpUtils != null) {
-                aiHttpUtils.cancelAllRequests();  // 取消所有正在进行的AI请求
-                aiHttpUtils = null;
-            }
-
-            // 清理其他资源
-            allFilePaths.clear();
-            classDescriptions.clear();
-            if (aiResponseArea != null) {
-                aiResponseArea.setText("");
-            }
-
-            // 等待后台任务完成
-            searchBackgroundExecutor.execute(() -> {
-                try {
-                    mainWindow.getBackgroundExecutor().waitForComplete();
-                    unloadTempData();
-                } catch (Exception e) {
-                    // 忽略关闭时的异常
-                }
-            });
-        } catch (Exception e) {
-            // 忽略关闭时的异常
-        } finally {
-            super.dispose();
+        if (searchDisposable != null) {
+            searchDisposable.dispose();
+            searchDisposable = null;
         }
+        removeActiveTabListener();
+        if (aiHttpUtils != null) {
+            aiHttpUtils.cancelAllRequests();
+        }
+        if (searchTask != null) {
+            searchTask.cancel();
+        }
+        searchBackgroundExecutor.shutdownNow();
+        super.dispose();
     }
 
     private Set<SearchOptions> buildOptions(SearchPreset preset) {
@@ -285,18 +258,17 @@ public class AiSearchDialog extends CommonSearchDialog {
 
     private boolean initAI() {
         String apiUrl = mainWindow.getSettings().getAiApi();
-        String apiKey = mainWindow.getSettings().getAiApiKey();
         String model = mainWindow.getSettings().getAiModel();
 
         // 检查AI配置是否完整
         if (apiUrl == null || apiUrl.trim().isEmpty() ||
-            apiKey == null || apiKey.trim().isEmpty() ||
             model == null || model.trim().isEmpty()) {
             LOG.warn("AI配置信息不完整");
             return false;
         }
 
         try {
+            String apiKey = mainWindow.getSettings().getAiApiKey();
             aiHttpUtils = new AIHttpUtils(apiUrl, apiKey);
             return true;
         } catch (Exception e) {

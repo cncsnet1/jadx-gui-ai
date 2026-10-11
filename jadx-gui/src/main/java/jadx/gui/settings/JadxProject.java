@@ -34,6 +34,7 @@ import jadx.api.data.impl.JadxNodeRef;
 import jadx.api.plugins.utils.CommonFileUtils;
 import jadx.core.utils.exceptions.JadxRuntimeException;
 import jadx.core.utils.files.FileUtils;
+import jadx.gui.ai.AiRecord;
 import jadx.gui.cache.manager.CacheManager;
 import jadx.gui.settings.data.ProjectData;
 import jadx.gui.settings.data.TabViewState;
@@ -145,6 +146,26 @@ public class JadxProject {
 
 	public JadxCodeData getCodeData() {
 		return data.getCodeData();
+	}
+
+	public List<AiRecord> getAiRecords() {
+		return Collections.unmodifiableList(data.getAiRecords());
+	}
+
+	public void addAiRecord(AiRecord record) {
+		if (!data.getAiRecords().contains(record)) {
+			if (data.getAiRecords().size() >= 100) {
+				throw new IllegalStateException("AI record limit reached");
+			}
+			data.getAiRecords().add(record);
+		}
+		changed();
+	}
+
+	public void removeAiRecord(AiRecord record) {
+		if (data.getAiRecords().remove(record)) {
+			changed();
+		}
 	}
 
 	public void setCodeData(JadxCodeData codeData) {

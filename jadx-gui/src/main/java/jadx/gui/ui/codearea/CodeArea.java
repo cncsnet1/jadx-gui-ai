@@ -78,6 +78,11 @@ public final class CodeArea extends AbstractCodeArea {
 		if (isJavaCode) {
 			addMouseMotionListener(new MouseHoverHighlighter(this, codeLinkGenerator));
 		}
+		addCaretListener(e -> {
+			if (!isDisposed() && getMainWindow().getAiWorkbench() != null) {
+				getMainWindow().getAiWorkbench().follow(this);
+			}
+		});
 	}
 
 	public boolean isCodeNode() {
@@ -112,12 +117,12 @@ public final class CodeArea extends AbstractCodeArea {
 	public void load() {
 		if (getText().isEmpty()) {
 			String codeStr = getCodeInfo().getCodeStr();
-//			codeStr = "/*\n" +
-//					" * =====================================================\n" +
-//					" * 警告：本代码仅用于学习和参考！\n" +
-//					" * Warning: This code is for study and reference only!\n" +
-//					" * =====================================================\n" +
-//					" */\n\n" + codeStr;
+			// codeStr = "/*\n" +
+			// " * =====================================================\n" +
+			// " * 警告：本代码仅用于学习和参考！\n" +
+			// " * Warning: This code is for study and reference only!\n" +
+			// " * =====================================================\n" +
+			// " */\n\n" + codeStr;
 			setText(codeStr);
 			setCaretPosition(0);
 			setLoaded();
@@ -151,7 +156,7 @@ public final class CodeArea extends AbstractCodeArea {
 		popup.addSeparator();
 		popup.add(new FridaAction(this));
 		popup.add(new XposedAction(this));
-		//开始添加AI菜单
+		// 开始添加AI菜单
 		popup.addSeparator();
 		popup.add(new TranslateAction(this));
 		popup.add(new AuditAction(this));

@@ -67,8 +67,6 @@ import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
-import jadx.gui.ui.dialog.AiSearchDialog;
-import jadx.gui.ui.dialog.AiSettingDialog;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.Theme;
 import org.jetbrains.annotations.NotNull;
@@ -96,6 +94,8 @@ import jadx.core.utils.android.ApplicationParams;
 import jadx.core.utils.exceptions.JadxRuntimeException;
 import jadx.core.utils.files.FileUtils;
 import jadx.gui.JadxWrapper;
+import jadx.gui.ai.AiText;
+import jadx.gui.ai.AiWorkbenchPanel;
 import jadx.gui.cache.manager.CacheManager;
 import jadx.gui.device.debugger.BreakpointManager;
 import jadx.gui.events.services.RenameService;
@@ -133,6 +133,8 @@ import jadx.gui.ui.codearea.EditorTheme;
 import jadx.gui.ui.codearea.EditorViewState;
 import jadx.gui.ui.dialog.ADBDialog;
 import jadx.gui.ui.dialog.AboutDialog;
+import jadx.gui.ui.dialog.AiSearchDialog;
+import jadx.gui.ui.dialog.AiSettingDialog;
 import jadx.gui.ui.dialog.ExceptionDialog;
 import jadx.gui.ui.dialog.ExportProjectDialog;
 import jadx.gui.ui.dialog.LogViewerDialog;
@@ -203,6 +205,9 @@ public class MainWindow extends JFrame {
 	private transient JSplitPane rightSplitPane;
 	private transient JSplitPane bottomSplitPane;
 	private transient JSplitPane quickTabsAndCodeSplitPane;
+	private transient JSplitPane aiSplitPane;
+	private transient AiWorkbenchPanel aiWorkbench;
+	private transient ActionHandler aiWorkbenchAction;
 
 	private JTree tree;
 	private DefaultTreeModel treeModel;
@@ -277,6 +282,7 @@ public class MainWindow extends JFrame {
 		treeSplitPane.setDividerLocation(settings.getTreeWidth());
 		heapUsageBar.setVisible(settings.isShowHeapUsageBar());
 		setVisible(true);
+		setAiWorkbenchVisible(settings.isAiWorkbenchVisible());
 		setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowAdapter() {
 			@Override
@@ -592,6 +598,9 @@ public class MainWindow extends JFrame {
 	}
 
 	private void saveAll() {
+		if (aiWorkbench != null && aiWorkbench.isVisible() && aiWorkbench.getWidth() > 0) {
+			settings.setAiWorkbenchWidth(aiWorkbench.getWidth());
+		}
 		saveOpenTabs();
 		project.setTreeExpansions(treeExpansionService.save());
 		BreakpointManager.saveAndExit();
@@ -1135,11 +1144,8 @@ public class MainWindow extends JFrame {
 		JadxGuiAction openDeviceAction = new JadxGuiAction(ActionModel.OPEN_DEVICE,
 				() -> new ADBDialog(MainWindow.this).setVisible(true));
 
-		//AI设置菜单
 		JadxGuiAction aiSetting = new JadxGuiAction(ActionModel.AI_SETTING,
-				() -> {
-			       new AiSettingDialog(MainWindow.this,settings).setVisible(true);
-				});
+				() -> new AiSettingDialog(MainWindow.this, settings).setVisible(true));
 		JMenu file = new JadxMenu(NLS.str("menu.file"), shortcutsController);
 		file.setMnemonic(KeyEvent.VK_F);
 		file.add(openAction);
@@ -1163,6 +1169,12 @@ public class MainWindow extends JFrame {
 		file.add(exitAction);
 
 		JMenu view = new JadxMenu(NLS.str("menu.view"), shortcutsController);
+		aiWorkbenchAction = new ActionHandler(e -> setAiWorkbenchVisible(!aiWorkbench.isVisible()));
+		aiWorkbenchAction.setNameAndDesc(AiText.str("title"));
+		aiWorkbenchAction.setIcon(UiUtils.openSvgIcon("ui/aiWorkbench"));
+		aiWorkbenchAction.setSelected(settings.isAiWorkbenchVisible());
+		view.add(aiWorkbenchAction.makeCheckBoxMenuItem());
+		view.add(aiSetting);
 		view.setMnemonic(KeyEvent.VK_V);
 		view.add(quickTabsAction.makeCheckBoxMenuItem());
 		view.add(flatPkgMenuItem);
@@ -1269,8 +1281,7 @@ public class MainWindow extends JFrame {
 		toolbar.addSeparator();
 		toolbar.add(prefsAction);
 		toolbar.addSeparator();
-		//添加一个AI的设置
-		toolbar.add(aiSetting);
+		toolbar.add(aiWorkbenchAction.makeToggleButton());
 
 		toolbar.addSeparator();
 		toolbar.add(Box.createHorizontalGlue());
@@ -1421,8 +1432,16 @@ public class MainWindow extends JFrame {
 		quickTabsAndCodeSplitPane.setDividerSize(0);
 		quickTabsAndCodeSplitPane.setRightComponent(tabbedPane);
 
+		aiWorkbench = new AiWorkbenchPanel(this);
+		aiWorkbench.setVisible(false);
+		aiSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, quickTabsAndCodeSplitPane, aiWorkbench);
+		aiSplitPane.setDividerSize(0);
+		aiSplitPane.setResizeWeight(1.0);
+		aiSplitPane.setContinuousLayout(true);
+		aiSplitPane.setBorder(null);
+
 		rightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-		rightSplitPane.setTopComponent(quickTabsAndCodeSplitPane);
+		rightSplitPane.setTopComponent(aiSplitPane);
 		rightSplitPane.setResizeWeight(SPLIT_PANE_RESIZE_WEIGHT);
 
 		treeSplitPane.setRightComponent(rightSplitPane);
@@ -1513,6 +1532,7 @@ public class MainWindow extends JFrame {
 
 	private void updateUiSettings() {
 		LafManager.updateLaf(settings);
+		aiWorkbench.refreshTheme();
 
 		Font font = settings.getFont();
 		Font largerFont = font.deriveFont(font.getSize() + 2.f);
@@ -1548,6 +1568,7 @@ public class MainWindow extends JFrame {
 		closeAll();
 
 		dispose();
+		aiWorkbench.close();
 		System.exit(0);
 	}
 
@@ -1618,6 +1639,28 @@ public class MainWindow extends JFrame {
 
 	public TabsController getTabsController() {
 		return tabsController;
+	}
+
+	public AiWorkbenchPanel getAiWorkbench() {
+		return aiWorkbench;
+	}
+
+	public void setAiWorkbenchVisible(boolean visible) {
+		boolean opening = visible && !aiWorkbench.isVisible();
+		if (!visible && aiWorkbench.isVisible() && aiSplitPane.getWidth() > 0) {
+			settings.setAiWorkbenchWidth(aiWorkbench.getWidth());
+		}
+		aiWorkbench.setVisible(visible);
+		aiSplitPane.setDividerSize(visible ? 6 : 0);
+		settings.setAiWorkbenchVisible(visible);
+		if (aiWorkbenchAction != null) {
+			aiWorkbenchAction.setSelected(visible);
+		}
+		if (opening) {
+			int width = settings.getAiWorkbenchWidth();
+			SwingUtilities.invokeLater(() -> aiSplitPane.setDividerLocation(
+					Math.max(150, aiSplitPane.getWidth() - width - aiSplitPane.getDividerSize())));
+		}
 	}
 
 	public NavigationController getNavController() {

@@ -23,6 +23,8 @@ import javax.swing.JPanel;
 import javax.swing.JSeparator;
 import javax.swing.SwingConstants;
 
+import jadx.gui.utils.NLS;
+
 public class AboutDialog extends JDialog {
 	private static final long serialVersionUID = 5763493590584039096L;
 
@@ -188,7 +190,7 @@ public class AboutDialog extends JDialog {
 		getContentPane().add(mainPanel, BorderLayout.CENTER);
 		getContentPane().add(closeButton, BorderLayout.SOUTH);
 
-		setTitle("关于 JADX-GUI-AI");
+		setTitle(NLS.str("about_dialog.title"));
 		setResizable(false);
 		setModalityType(ModalityType.APPLICATION_MODAL);
 		pack();

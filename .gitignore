@@ -23,6 +23,8 @@ idea/
 .gradle/
 .kotlin/
 node_modules/
+__pycache__/
+*.pyc
 .vscode/
 
 jadx-output/
@@ -33,6 +35,7 @@ jadx-output/
 
 *.class
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 *.dump
 *.log
 *.cfg

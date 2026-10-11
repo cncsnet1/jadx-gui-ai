@@ -11,6 +11,7 @@ import java.util.Objects;
 import org.jetbrains.annotations.Nullable;
 
 import jadx.api.data.impl.JadxCodeData;
+import jadx.gui.ai.AiRecord;
 
 public class ProjectData {
 	private int projectVersion = 2;
@@ -22,10 +23,18 @@ public class ProjectData {
 	private @Nullable String cacheDir; // don't use relative path adapter
 	private boolean enableLiveReload = false;
 	private List<String> searchHistory = new ArrayList<>();
+	private List<AiRecord> aiRecords = new ArrayList<>();
 	protected Map<String, String> pluginOptions = new HashMap<>();
 
 	public List<Path> getFiles() {
 		return files;
+	}
+
+	public List<AiRecord> getAiRecords() {
+		if (aiRecords == null) {
+			aiRecords = new ArrayList<>();
+		}
+		return aiRecords;
 	}
 
 	public void setFiles(List<Path> files) {

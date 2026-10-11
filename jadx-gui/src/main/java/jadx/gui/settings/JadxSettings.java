@@ -36,6 +36,8 @@ import jadx.api.args.UseSourceNameAsClassNameAlias;
 import jadx.api.args.UserRenamesMappingsMode;
 import jadx.cli.JadxCLIArgs;
 import jadx.cli.LogHelper;
+import jadx.gui.ai.AiConfiguration;
+import jadx.gui.ai.AiProfile;
 import jadx.gui.cache.code.CodeCacheMode;
 import jadx.gui.cache.usage.UsageCacheMode;
 import jadx.gui.settings.data.ShortcutsWrapper;
@@ -114,11 +116,14 @@ public class JadxSettings extends JadxCLIArgs {
 	private boolean smaliAreaShowBytecode = false;
 	private LineNumbersMode lineNumbersMode = LineNumbersMode.AUTO;
 
-	//--设置相关
+	// --设置相关
 	private String aiApi;
 	private String aiApiKey;
 	private String aiModel;
 	private String AiMaxTokens;
+	private AiConfiguration aiConfiguration;
+	private boolean aiWorkbenchVisible = true;
+	private int aiWorkbenchWidth = 390;
 
 	private int mainWindowVerticalSplitterLoc = 300;
 	private int debuggerStackFrameSplitterLoc = 300;
@@ -185,8 +190,47 @@ public class JadxSettings extends JadxCLIArgs {
 		}
 	}
 
+	public boolean isAiWorkbenchVisible() {
+		return aiWorkbenchVisible;
+	}
+
+	public void setAiWorkbenchVisible(boolean visible) {
+		if (aiWorkbenchVisible != visible) {
+			aiWorkbenchVisible = visible;
+			partialSync(settings -> settings.aiWorkbenchVisible = visible);
+		}
+	}
+
+	public int getAiWorkbenchWidth() {
+		return Math.max(285, Math.min(700, aiWorkbenchWidth));
+	}
+
+	public void setAiWorkbenchWidth(int width) {
+		int boundedWidth = Math.max(285, Math.min(700, width));
+		if (aiWorkbenchWidth != boundedWidth) {
+			aiWorkbenchWidth = boundedWidth;
+			partialSync(settings -> settings.aiWorkbenchWidth = boundedWidth);
+		}
+	}
+
 	public String getAiMaxTokens() {
 		return AiMaxTokens;
+	}
+
+	public AiConfiguration getAiConfiguration() {
+		return aiConfiguration;
+	}
+
+	public void setAiConfiguration(AiConfiguration config) {
+		aiConfiguration = config.copy();
+		AiProfile profile = aiConfiguration.getDefaultProfile();
+		if (profile != null) {
+			// Keep legacy AI search in sync without storing a resolved environment secret.
+			aiApi = profile.getUrl();
+			aiApiKey = profile.getKeyEnvironment().isEmpty() ? profile.getApiKey() : "";
+			aiModel = profile.getModel();
+			AiMaxTokens = Integer.toString(profile.getOutputTokens());
+		}
 	}
 
 	public void setAiMaxTokens(String aiMaxTokens) {
@@ -202,6 +246,9 @@ public class JadxSettings extends JadxCLIArgs {
 	}
 
 	public String getAiApiKey() {
+		if (aiConfiguration != null && aiConfiguration.getDefaultProfile() != null) {
+			return aiConfiguration.getDefaultProfile().resolveApiKey();
+		}
 		return aiApiKey;
 	}
 

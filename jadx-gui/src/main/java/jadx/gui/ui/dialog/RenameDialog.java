@@ -48,6 +48,14 @@ public class RenameDialog extends CommonDialog {
 		return true;
 	}
 
+	public static void rename(MainWindow mainWindow, JRenameNode node, String suggestedName) {
+		RenameDialog dialog = new RenameDialog(mainWindow, node);
+		dialog.renameField.setText(suggestedName);
+		dialog.renameField.selectAll();
+		dialog.checkNewName(suggestedName);
+		dialog.setVisible(true);
+	}
+
 	public static JPopupMenu buildRenamePopup(MainWindow mainWindow, JRenameNode node) {
 		JPopupMenu menu = new JPopupMenu();
 		menu.add(buildRenamePopupMenuItem(mainWindow, node));

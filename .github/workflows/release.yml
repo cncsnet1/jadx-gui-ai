@@ -1,0 +1,105 @@
+name: Desktop release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without v, for example 2.0.0-beta.1'
+        required: true
+        default: '2.0.0-beta.1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Resolve version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.Substring(1) } else { $env:INPUT_VERSION }
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$') { throw 'Invalid release version' }
+          "JADX_VERSION=$version" >> $env:GITHUB_ENV
+          "PYTHONIOENCODING=utf-8" >> $env:GITHUB_ENV
+      - name: Test and build application
+        run: .\gradlew.bat --no-daemon -PbundleJRE :jadx-gui:test :jadx-gui:shadowJar :jadx-gui:createExe
+      - name: Test packaging code
+        run: python -m unittest discover -s scripts/release -p "test_*.py"
+      - name: Assemble six platform archives
+        run: python scripts/release/build_release.py --version $env:JADX_VERSION
+      - name: Verify archives
+        run: python scripts/release/verify_release.py "build/releases/$env:JADX_VERSION"
+      - name: Smoke test Windows runtime and CLI
+        run: |
+          $archive = "build/releases/$env:JADX_VERSION/jadx-gui-ai-$env:JADX_VERSION-windows-x64.zip"
+          Expand-Archive -LiteralPath $archive -DestinationPath 'build/release-smoke'
+          $bundle = "build/release-smoke/jadx-gui-ai-$env:JADX_VERSION-windows-x64"
+          & "$bundle/jre/bin/java.exe" -version
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled Java did not start' }
+          $version = & "$bundle/bin/jadx.bat" --version
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch [regex]::Escape($env:JADX_VERSION)) { throw 'CLI version check failed' }
+      - name: Upload release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-assets
+          path: build/releases/${{ env.JADX_VERSION }}/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: gui-test-reports
+          path: jadx-gui/build/reports/tests/test/
+          if-no-files-found: ignore
+
+  draft-release:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-assets
+          path: assets
+      - name: Create a draft for review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --json id >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; keeping its published assets unchanged."
+            exit 0
+          fi
+          options=(--draft --verify-tag --title "JADX GUI AI $RELEASE_TAG" --notes-file assets/RELEASE-NOTES.md)
+          if [[ "$RELEASE_TAG" == *-* ]]; then options+=(--prerelease); fi
+          gh release create "$RELEASE_TAG" assets/* "${options[@]}"
