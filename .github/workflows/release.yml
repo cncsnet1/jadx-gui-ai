@@ -96,10 +96,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if gh release view "$RELEASE_TAG" --json id >/dev/null 2>&1; then
-            echo "Release $RELEASE_TAG already exists; keeping its published assets unchanged."
-            exit 0
-          fi
           options=(--draft --verify-tag --title "JADX GUI AI $RELEASE_TAG" --notes-file assets/RELEASE-NOTES.md)
           if [[ "$RELEASE_TAG" == *-* ]]; then options+=(--prerelease); fi
           gh release create "$RELEASE_TAG" assets/* "${options[@]}"

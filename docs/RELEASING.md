@@ -44,7 +44,7 @@ GUI 检查至少覆盖：打开演示类或 APK、配置连接、预览上下文
 
 ## 上传 GitHub
 
-将源码改动推送到自己的仓库，创建版本标签后，可使用 `.github/workflows/release.yml` 自动完成测试、构建、打包、校验并生成 **草稿 Release**。手动触发工作流只上传 Actions 构建附件。如果该标签已有 Release，工作流保留已有发布内容，新的构建结果仍可从 Actions 附件下载。
+将源码改动推送到自己的仓库，创建版本标签后，可使用 `.github/workflows/release.yml` 自动完成测试、构建、打包、校验并生成 **草稿 Release**。手动触发工作流只上传 Actions 构建附件。标签必须尚未创建 Release；同一版本的后续构建可手动触发，避免重复创建发布。
 
 ```bash
 git tag v2.0.0-beta.1
