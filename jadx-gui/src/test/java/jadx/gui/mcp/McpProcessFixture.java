@@ -2,6 +2,8 @@ package jadx.gui.mcp;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 
 import com.google.gson.JsonArray;
@@ -16,7 +18,8 @@ public final class McpProcessFixture {
 
 	public static void main(String[] args) throws Exception {
 		String mode = args.length == 0 ? "normal" : args[0];
-		try (BufferedReader input = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
+		try (BufferedReader input = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
+				PrintWriter output = new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true)) {
 			String line;
 			while ((line = input.readLine()) != null) {
 				JsonObject request = JsonParser.parseString(line).getAsJsonObject();
@@ -58,8 +61,7 @@ public final class McpProcessFixture {
 							return;
 						}
 						if (mode.equals("oversize")) {
-							System.out.println("x".repeat(1_000_001));
-							System.out.flush();
+							output.println("x".repeat(1_000_001));
 							continue;
 						}
 						JsonObject text = new JsonObject();
@@ -77,8 +79,7 @@ public final class McpProcessFixture {
 				response.addProperty("jsonrpc", "2.0");
 				response.add("id", request.get("id"));
 				response.add("result", result);
-				System.out.println(response);
-				System.out.flush();
+				output.println(response);
 			}
 		}
 	}
