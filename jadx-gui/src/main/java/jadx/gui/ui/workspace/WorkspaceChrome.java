@@ -1,6 +1,7 @@
 package jadx.gui.ui.workspace;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -23,6 +24,7 @@ import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 
 import jadx.gui.ai.AiText;
+import jadx.gui.mcp.McpText;
 import jadx.gui.ui.MainWindow;
 import jadx.gui.ui.panel.ContentPanel;
 import jadx.gui.ui.treenodes.StartPageNode;
@@ -34,6 +36,7 @@ import static jadx.gui.ui.workspace.WorkspaceIcon.Kind.*;
 /** Window chrome owns navigation, command entry and status; code/docking stay in MainWindow. */
 public final class WorkspaceChrome extends JPanel {
 	private final MainWindow window;
+	private final JButton mcpStatus = new JButton();
 	private final JLabel project = WorkbenchUi.title("", 1);
 	private final JLabel location = WorkbenchUi.mutedLabel("");
 	private final JLabel mode = WorkbenchUi.mutedLabel("");
@@ -41,6 +44,9 @@ public final class WorkspaceChrome extends JPanel {
 	private final JButton explorer;
 	private final JButton assistant;
 	private final JButton focus;
+	private final CardLayout contentLayout = new CardLayout();
+	private final JPanel content = new JPanel(contentLayout);
+	private final ProjectLoadPanel loadPanel;
 
 	public WorkspaceChrome(MainWindow window, JComponent workspace, JComponent heap, JComponent update,
 			Action openAction, Action searchAction, Action settingsAction, Action logAction) {
@@ -88,7 +94,7 @@ public final class WorkspaceChrome extends JPanel {
 		rail.setLayout(new BoxLayout(rail, BoxLayout.PAGE_AXIS));
 		rail.setBorder(BorderFactory.createEmptyBorder(6, 10, 12, 10));
 		home = railButton("studio_home", HOME, window::showWorkspaceHome);
-		explorer = railButton("studio_files", FILES, window::toggleWorkspaceExplorer);
+		explorer = railButton("studio_files", FILES, window::showWorkspaceExplorer);
 		assistant = railButton("studio_assistant", AI,
 				() -> window.setAiWorkbenchVisible(!window.getAiWorkbench().isVisible()));
 		rail.add(home);
@@ -113,7 +119,12 @@ public final class WorkspaceChrome extends JPanel {
 
 		JPanel stage = WorkbenchUi.transparent();
 		stage.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 14));
-		stage.add(workspace, BorderLayout.CENTER);
+		loadPanel = new ProjectLoadPanel(window::openFileDialog,
+				() -> logAction.actionPerformed(new ActionEvent(this, 0, "logs")));
+		content.setOpaque(false);
+		content.add(workspace, "workspace");
+		content.add(loadPanel, "load");
+		stage.add(content, BorderLayout.CENTER);
 		add(stage, BorderLayout.CENTER);
 		JPanel footer = WorkbenchUi.transparent();
 		footer.setBorder(BorderFactory.createEmptyBorder(8, 22, 9, 22));
@@ -121,6 +132,10 @@ public final class WorkspaceChrome extends JPanel {
 		footer.add(location, BorderLayout.CENTER);
 		JPanel indicators = new JPanel(new FlowLayout(FlowLayout.TRAILING, 12, 0));
 		indicators.setOpaque(false);
+		mcpStatus.putClientProperty("JButton.buttonType", "toolBarButton");
+		mcpStatus.setToolTipText(McpText.str("title"));
+		mcpStatus.addActionListener(event -> window.showMcpDialog());
+		indicators.add(mcpStatus);
 		heap.setPreferredSize(new Dimension(140, 16));
 		indicators.add(heap);
 		indicators.add(update);
@@ -141,10 +156,30 @@ public final class WorkspaceChrome extends JPanel {
 		new CommandPaletteDialog(window).setVisible(true);
 	}
 
+	public void showLoading(String fileName) {
+		loadPanel.loading(fileName);
+		contentLayout.show(content, "load");
+	}
+
+	public void showLoadError(String message) {
+		loadPanel.failed(message);
+		contentLayout.show(content, "load");
+	}
+
+	public void showWorkspace() {
+		loadPanel.finished();
+		contentLayout.show(content, "workspace");
+	}
+
 	public void refresh() {
+		boolean sharing = window.getMcpManager().server() != null;
+		long connections = window.getMcpManager().clients().stream().filter(client -> !client.isClosed()).count();
+		mcpStatus.setVisible(sharing || connections > 0);
+		mcpStatus.setText(sharing ? McpText.str("sharing_badge") : "MCP · " + connections);
 		WorkspaceLayout layout = window.getWorkspaceLayout();
 		home.setSelected(layout.isHome());
-		explorer.setSelected(layout.isExplorerVisible());
+		explorer.setSelected(window.isProjectLoaded() && !layout.isHome());
+		explorer.setEnabled(window.isProjectLoaded());
 		assistant.setSelected(layout.isAssistantVisible());
 		focus.setEnabled(!layout.isHome());
 		focus.setText(AiText.str(layout.isFocus() ? "studio_restore" : "studio_focus"));
@@ -152,7 +187,7 @@ public final class WorkspaceChrome extends JPanel {
 		project.setToolTipText(project.getText());
 		ContentPanel selected = window.getTabbedPane().getSelectedContentPanel();
 		String path = selected == null || selected.getNode() == null || selected.getNode() instanceof StartPageNode
-				? AiText.str("studio_ready")
+				? AiText.str(window.isProjectLoaded() ? "studio_project_ready_hint" : "studio_ready")
 				: selected.getNode().makeLongString();
 		location.setText("    /    " + path);
 		location.setToolTipText(path);
@@ -180,8 +215,8 @@ public final class WorkspaceChrome extends JPanel {
 			}
 		};
 		button.setAlignmentX(Component.CENTER_ALIGNMENT);
-		button.setPreferredSize(new Dimension(60, 64));
-		button.setMaximumSize(new Dimension(60, 64));
+		button.setPreferredSize(new Dimension(76, 64));
+		button.setMaximumSize(new Dimension(76, 64));
 		button.setHorizontalTextPosition(SwingConstants.CENTER);
 		button.setVerticalTextPosition(SwingConstants.BOTTOM);
 		button.setIconTextGap(7);

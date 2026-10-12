@@ -106,12 +106,14 @@ public class JavaInputLoader {
 			return Collections.singletonList(reader);
 		}
 		if (isStartWithBytes(content, ZIP_FILE_MAGIC) || CommonFileUtils.isZipFileExt(name)) {
+			Files.createDirectories(tempPath);
 			Path tempZip = Files.createTempFile(tempPath, "temp", ".zip");
-			FileUtils.writeFile(tempZip, content);
-			File zipFile = tempZip.toFile();
-			List<JavaClassReader> readers = collectFromZip(zipFile, concatSource(parentFileName, name));
-			CommonFileUtils.safeDeleteFile(zipFile);
-			return readers;
+			try {
+				FileUtils.writeFile(tempZip, content);
+				return collectFromZip(tempZip.toFile(), concatSource(parentFileName, name));
+			} finally {
+				CommonFileUtils.safeDeleteFile(tempZip.toFile());
+			}
 		}
 		return Collections.emptyList();
 	}

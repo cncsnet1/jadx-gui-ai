@@ -6,6 +6,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class WorkspaceLayoutTest {
 	@Test
+	void workspaceNavigationAlwaysRevealsFilesAndKeepsAssistantPreference() {
+		for (boolean assistant : new boolean[] { false, true }) {
+			WorkspaceLayout layout = new WorkspaceLayout(assistant);
+			layout.setHome(false);
+			layout.toggleExplorer();
+			layout.toggleFocus();
+			layout.setHome(true);
+			layout.showExplorer();
+			assertThat(layout.isHome()).isFalse();
+			assertThat(layout.isFocus()).isFalse();
+			assertThat(layout.isExplorerVisible()).isTrue();
+			assertThat(layout.isAssistantVisible()).isEqualTo(assistant);
+			layout.showExplorer();
+			assertThat(layout.isExplorerVisible()).as("Repeated navigation must not hide the file tree").isTrue();
+		}
+	}
+
+	@Test
 	void homeDoesNotOverwritePanelChoices() {
 		WorkspaceLayout layout = new WorkspaceLayout(true);
 		assertThat(layout.isExplorerVisible()).isFalse();

@@ -80,6 +80,7 @@ public class JadxWrapper {
 		} catch (Exception e) {
 			LOG.error("Jadx decompiler wrapper init error", e);
 			close();
+			throw new JadxRuntimeException("Project load error", e);
 		}
 	}
 

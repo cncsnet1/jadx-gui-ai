@@ -71,7 +71,7 @@ def verify(directory):
             info = json.loads(reader.read(f"{root}/BUILD-INFO.json"))
             assert info["version"] == manifest["version"] and info["platform"] == platform
             for name in ("README.md", "LICENSE", "NOTICE", "START-HERE.txt", "docs/images/readme-hero.svg",
-                         "docs/JAVA_DEOBFUSCATION.md", "docs/images/workspace-home-graphite.png",
+                         "docs/JAVA_DEOBFUSCATION.md", "docs/MCP.md", "docs/images/workspace-home-graphite.png",
                          "docs/images/workbench-graphite.png"):
                 assert f"{root}/{name}" in reader.names, (platform, name)
             jars = [name for name in reader.names if name.endswith("-all.jar")]
@@ -79,7 +79,13 @@ def verify(directory):
             payload = reader.read(jars[0])
             with zipfile.ZipFile(io.BytesIO(payload)) as application:
                 for required in ("jadx/gui/ui/workspace/WorkspaceChrome.class",
+                                 "jadx/gui/ui/workspace/ProjectLoadPanel.class",
+                                 "jadx/gui/ui/workspace/ProjectReadyPanel.class",
+                                 "jadx/gui/ui/FileDropSupport.class",
                                  "jadx/gui/ai/AiClassSearch.class",
+                                 "jadx/gui/mcp/McpServer.class",
+                                 "jadx/gui/mcp/McpClient.class",
+                                 "mcp/messages_zh.properties",
                                  "jadx/plugins/deobf/JavaDeobfPlugin.class",
                                  "themes/jadx-graphite.xml"):
                     assert required in application.namelist(), (platform, required)

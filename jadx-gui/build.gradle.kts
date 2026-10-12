@@ -157,6 +157,7 @@ runtime {
 		"java.desktop",
 		"java.naming",
 		"java.xml",
+		"jdk.httpserver",
 		// needed for "https" protocol to download plugins and updates
 		"jdk.crypto.cryptoki",
 	)

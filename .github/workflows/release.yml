@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version without v, for example 2.0.0-beta.2'
+        description: 'Version without v, for example 2.0.0-beta.3'
         required: true
-        default: '2.0.0-beta.2'
+        default: '2.0.0-beta.3'
 
 permissions:
   contents: read
@@ -45,7 +45,7 @@ jobs:
           "JADX_VERSION=$version" >> $env:GITHUB_ENV
           "PYTHONIOENCODING=utf-8" >> $env:GITHUB_ENV
       - name: Test and build application
-        run: .\gradlew.bat --no-daemon -PbundleJRE :jadx-plugins:jadx-java-deobf:test :jadx-gui:test :jadx-gui:shadowJar :jadx-gui:createExe
+        run: .\gradlew.bat --no-daemon -PbundleJRE :jadx-plugins:jadx-java-deobf:test :jadx-plugins:jadx-java-input:test --tests jadx.plugins.input.java.NestedArchiveTest :jadx-gui:test :jadx-gui:shadowJar :jadx-gui:createExe
       - name: Test packaging code
         run: python -m unittest discover -s scripts/release -p "test_*.py"
       - name: Assemble six platform archives

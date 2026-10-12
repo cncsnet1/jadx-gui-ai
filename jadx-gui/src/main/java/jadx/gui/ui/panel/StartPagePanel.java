@@ -3,13 +3,11 @@ package jadx.gui.ui.panel;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
-import java.awt.geom.Path2D;
 import java.nio.file.Path;
 
 import javax.swing.BorderFactory;
@@ -35,6 +33,10 @@ import jadx.gui.utils.ui.WorkbenchUi;
 
 public class StartPagePanel extends ContentPanel {
 	private final JPanel recentPanel = new JPanel();
+	private JLabel dropTitle;
+	private JTextArea dropHint;
+	private DropZone dropZone;
+	private boolean fileDropActive;
 
 	public StartPagePanel(TabbedPane tabbedPane, StartPageNode node) {
 		super(tabbedPane, node);
@@ -46,79 +48,99 @@ public class StartPagePanel extends ContentPanel {
 		setLayout(new BorderLayout());
 		MainWindow window = getMainWindow();
 		Landing page = new Landing();
-		page.setLayout(new BorderLayout(0, 26));
-		page.setBorder(BorderFactory.createEmptyBorder(32, 36, 26, 36));
+		page.setLayout(new BorderLayout(0, 20));
+		page.setBorder(BorderFactory.createEmptyBorder(24, 28, 20, 28));
 		page.setBackground(WorkbenchUi.canvas());
-		JPanel hero = WorkbenchUi.transparent();
-		hero.setLayout(new BorderLayout(24, 0));
-		Blueprint graphic = new Blueprint();
-		graphic.setPreferredSize(new Dimension(330, 246));
-		page.graphic = graphic;
-		hero.add(graphic, BorderLayout.EAST);
+		JPanel top = WorkbenchUi.transparent();
+		top.setLayout(new BorderLayout(0, 18));
+		JPanel heading = WorkbenchUi.transparent();
+		boolean loaded = window.isProjectLoaded();
+		heading.add(WorkbenchUi.title(AiText.str(loaded ? "studio_resume_title" : "studio_hero_line1"), 14), BorderLayout.NORTH);
+		heading.add(WorkbenchUi.body(AiText.str(loaded ? "studio_resume_hint" : "studio_hero_body")), BorderLayout.CENTER);
+		if (loaded) {
+			JPanel current = WorkbenchUi.card(16);
+			JLabel file = WorkbenchUi.title(window.getProject().getFilePaths().get(0).getFileName().toString(), 2);
+			file.setToolTipText(window.getProject().getFilePaths().get(0).toString());
+			current.add(file, BorderLayout.CENTER);
+			JButton resume = new JButton(AiText.str("studio_resume"), new WorkspaceIcon(WorkspaceIcon.Kind.ARROW, 18));
+			WorkbenchUi.primary(resume);
+			resume.addActionListener(e -> window.showWorkspaceExplorer());
+			current.add(resume, BorderLayout.EAST);
+			heading.add(current, BorderLayout.SOUTH);
+		}
+		top.add(heading, BorderLayout.NORTH);
+		fileDropActive = false;
+		dropZone = new DropZone();
+		dropZone.setLayout(new BorderLayout(24, 0));
+		dropZone.setBorder(BorderFactory.createEmptyBorder(28, 28, 26, 28));
+		dropZone.setPreferredSize(new Dimension(620, 232));
+		dropZone.getAccessibleContext().setAccessibleName(AiText.str("studio_drop_title"));
+		JLabel icon = new JLabel(new WorkspaceIcon(WorkspaceIcon.Kind.FILES, 44));
+		icon.setForeground(WorkbenchUi.accent());
+		icon.setVerticalAlignment(SwingConstants.TOP);
+		icon.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));
+		dropZone.add(icon, BorderLayout.WEST);
 		JPanel introduction = WorkbenchUi.transparent();
 		introduction.setLayout(new BoxLayout(introduction, BoxLayout.PAGE_AXIS));
-		JLabel eyebrow = WorkbenchUi.mutedLabel("REVERSE ENGINEERING  /  REIMAGINED");
-		eyebrow.setForeground(WorkbenchUi.accent());
-		introduction.add(eyebrow);
-		introduction.add(Box.createVerticalStrut(20));
-		introduction.add(WorkbenchUi.title(AiText.str("studio_hero_line1"), 26));
-		JLabel secondLine = WorkbenchUi.title(AiText.str("studio_hero_line2"), 26);
-		secondLine.setForeground(WorkbenchUi.accent());
-		introduction.add(secondLine);
+		dropTitle = WorkbenchUi.accentTitle(AiText.str("studio_drop_title"), 16);
+		introduction.add(dropTitle);
+		introduction.add(Box.createVerticalStrut(10));
+		dropHint = WorkbenchUi.body(AiText.str("studio_drop_body"));
+		dropHint.setForeground(WorkbenchUi.muted());
+		dropHint.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+		introduction.add(dropHint);
 		introduction.add(Box.createVerticalStrut(14));
-		JTextArea subtitle = WorkbenchUi.body(AiText.str("studio_hero_body"));
-		subtitle.setForeground(WorkbenchUi.muted());
-		subtitle.setMaximumSize(new Dimension(540, 44));
-		introduction.add(subtitle);
+		introduction.add(WorkbenchUi.mutedLabel("APK   ·   DEX   ·   JAR   ·   CLASS   ·   ZIP"));
 		introduction.add(Box.createVerticalStrut(20));
 		JPanel actions = WorkbenchUi.transparent();
 		actions.setLayout(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 0, 0));
 		actions.getAccessibleContext().setAccessibleName(NLS.str("start_page.start"));
 		JButton open = new JButton(AiText.str("studio_open_file"), new WorkspaceIcon(WorkspaceIcon.Kind.ARROW, 18));
-		open.setPreferredSize(new Dimension(180, 42));
+		open.setPreferredSize(new Dimension(150, 40));
 		open.setHorizontalTextPosition(SwingConstants.LEADING);
 		open.setIconTextGap(20);
-		WorkbenchUi.primary(open);
+		if (!loaded) {
+			WorkbenchUi.primary(open);
+		}
 		open.addActionListener(e -> window.openFileDialog());
 		actions.add(open);
 		actions.add(Box.createHorizontalStrut(12));
 		JButton project = new JButton(NLS.str("file.open_project"));
-		project.setPreferredSize(new Dimension(160, 42));
+		project.setPreferredSize(new Dimension(160, 40));
 		project.addActionListener(e -> window.openProjectDialog());
 		actions.add(project);
-		actions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+		actions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
 		introduction.add(actions);
 		for (java.awt.Component component : introduction.getComponents()) {
 			if (component instanceof javax.swing.JComponent) {
 				((javax.swing.JComponent) component).setAlignmentX(LEFT_ALIGNMENT);
 			}
 		}
-		hero.add(introduction);
-		page.add(hero, BorderLayout.NORTH);
+		dropZone.add(introduction);
+		top.add(dropZone, BorderLayout.CENTER);
+		page.add(top, BorderLayout.NORTH);
 
 		JPanel lower = WorkbenchUi.transparent();
 		lower.setLayout(new GridLayout(1, 2, 20, 0));
 		JPanel recent = WorkbenchUi.card(22);
 		JPanel recentHeading = WorkbenchUi.transparent();
 		recentHeading.add(WorkbenchUi.title(NLS.str("start_page.recent"), 5), BorderLayout.WEST);
-		recentHeading.add(WorkbenchUi.mutedLabel("WORKSPACE"), BorderLayout.EAST);
 		recent.add(recentHeading, BorderLayout.NORTH);
 		recentPanel.setOpaque(false);
 		JScrollPane recentScroll = new JScrollPane(recentPanel);
 		recentScroll.setOpaque(false);
 		recentScroll.getViewport().setOpaque(false);
 		recentScroll.setBorder(BorderFactory.createEmptyBorder());
-		recentScroll.setPreferredSize(new Dimension(300, 185));
+		recentScroll.setPreferredSize(new Dimension(300, 150));
 		recent.add(recentScroll);
 		fillRecentPanel();
 		lower.add(recent);
 		JPanel guide = WorkbenchUi.card(22);
 		guide.add(WorkbenchUi.title(AiText.str("studio_flow_title"), 5), BorderLayout.NORTH);
 		JPanel steps = WorkbenchUi.transparent();
-		steps.setLayout(new GridLayout(3, 1, 0, 10));
+		steps.setLayout(new GridLayout(2, 1, 0, 10));
 		steps.add(step("01", "studio_flow_open", "studio_flow_open_hint"));
-		steps.add(step("02", "studio_flow_find", "studio_flow_find_hint"));
-		steps.add(step("03", "studio_flow_analyze", "studio_flow_analyze_hint"));
+		steps.add(step("02", "studio_flow_analyze", "studio_flow_analyze_hint"));
 		guide.add(steps);
 		JButton configure = new JButton(AiText.str("studio_configure"), new WorkspaceIcon(WorkspaceIcon.Kind.SETTINGS, 16));
 		configure.putClientProperty("JButton.buttonType", "toolBarButton");
@@ -137,6 +159,16 @@ public class StartPagePanel extends ContentPanel {
 		add(scroll);
 	}
 
+	public void setFileDropActive(boolean active) {
+		if (fileDropActive == active) {
+			return;
+		}
+		fileDropActive = active;
+		dropTitle.setText(AiText.str(active ? "studio_drop_release" : "studio_drop_title"));
+		dropHint.setText(AiText.str(active ? "studio_drop_release_hint" : "studio_drop_body"));
+		dropZone.repaint();
+	}
+
 	private JPanel step(String number, String title, String hint) {
 		JPanel row = WorkbenchUi.transparent();
 		JLabel index = WorkbenchUi.title(number, 1);
@@ -145,7 +177,9 @@ public class StartPagePanel extends ContentPanel {
 		row.add(index, BorderLayout.WEST);
 		JPanel text = WorkbenchUi.transparent();
 		text.add(WorkbenchUi.title(AiText.str(title), 0), BorderLayout.NORTH);
-		text.add(WorkbenchUi.mutedLabel(AiText.str(hint)), BorderLayout.CENTER);
+		JTextArea description = WorkbenchUi.body(AiText.str(hint));
+		description.setForeground(WorkbenchUi.muted());
+		text.add(description, BorderLayout.CENTER);
 		row.add(text);
 		return row;
 	}
@@ -155,7 +189,7 @@ public class StartPagePanel extends ContentPanel {
 		recentPanel.setLayout(new BoxLayout(recentPanel, BoxLayout.PAGE_AXIS));
 		MainWindow window = getMainWindow();
 		if (window.getSettings().getRecentProjects().isEmpty()) {
-			recentPanel.add(Box.createVerticalStrut(22));
+			recentPanel.add(Box.createVerticalStrut(8));
 			JLabel icon = new JLabel(new WorkspaceIcon(WorkspaceIcon.Kind.FILES, 30));
 			icon.setForeground(WorkbenchUi.muted());
 			recentPanel.add(icon);
@@ -209,17 +243,10 @@ public class StartPagePanel extends ContentPanel {
 	}
 
 	private static final class Landing extends JPanel implements Scrollable {
-		private Blueprint graphic;
-
-		@Override
-		public void doLayout() {
-			graphic.setVisible(getWidth() >= 940);
-			super.doLayout();
-		}
 
 		@Override
 		public Dimension getPreferredScrollableViewportSize() {
-			return new Dimension(1040, 630);
+			return new Dimension(1040, 600);
 		}
 
 		@Override
@@ -243,9 +270,8 @@ public class StartPagePanel extends ContentPanel {
 		}
 	}
 
-	/** A conceptual source map; intentionally contains no invented project metrics. */
-	private static final class Blueprint extends JPanel {
-		Blueprint() {
+	private final class DropZone extends JPanel {
+		DropZone() {
 			setOpaque(false);
 		}
 
@@ -253,40 +279,13 @@ public class StartPagePanel extends ContentPanel {
 		protected void paintComponent(Graphics graphics) {
 			Graphics2D g = (Graphics2D) graphics.create();
 			g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-			g.setColor(WorkbenchUi.line());
-			for (int x = 8; x < getWidth(); x += 20) {
-				for (int y = 4; y < getHeight(); y += 20) {
-					g.fillOval(x, y, 2, 2);
-				}
-			}
-			g.setStroke(new BasicStroke(1.4f));
-			Path2D path = new Path2D.Float();
-			path.moveTo(55, 60);
-			path.curveTo(150, 60, 95, 132, 165, 132);
-			path.curveTo(240, 132, 210, 65, 285, 65);
-			path.moveTo(165, 132);
-			path.curveTo(165, 212, 250, 212, 280, 212);
-			g.setColor(WorkbenchUi.accent());
-			g.draw(path);
-			node(g, 8, 35, 108, 46, "APK / JAR", false);
-			node(g, 117, 100, 116, 65, "</>", true);
-			node(g, 233, 37, 89, 46, "SOURCE", false);
-			node(g, 232, 187, 90, 46, "AI", false);
-			g.setColor(WorkbenchUi.muted());
-			g.setFont(getFont().deriveFont(10f));
-			g.drawString("READ  →  CONNECT  →  UNDERSTAND", 8, getHeight() - 4);
+			g.setColor(fileDropActive ? WorkbenchUi.tint() : WorkbenchUi.surface());
+			g.fillRoundRect(1, 1, getWidth() - 3, getHeight() - 3, 18, 18);
+			g.setColor(fileDropActive ? WorkbenchUi.accent() : WorkbenchUi.line());
+			g.setStroke(fileDropActive ? new BasicStroke(2f)
+					: new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1, new float[] { 7, 6 }, 0));
+			g.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, 18, 18);
 			g.dispose();
-		}
-
-		private void node(Graphics2D g, int x, int y, int width, int height, String text, boolean main) {
-			g.setColor(main ? WorkbenchUi.tint() : WorkbenchUi.surface());
-			g.fillRoundRect(x, y, width, height, 16, 16);
-			g.setColor(main ? WorkbenchUi.accent() : WorkbenchUi.line());
-			g.drawRoundRect(x, y, width, height, 16, 16);
-			g.setColor(main ? WorkbenchUi.accent() : getForeground());
-			g.setFont(getFont().deriveFont(Font.BOLD, main ? 25f : 12f));
-			g.drawString(text, x + (width - g.getFontMetrics().stringWidth(text)) / 2,
-					y + (height + g.getFontMetrics().getAscent() - g.getFontMetrics().getDescent()) / 2);
 		}
 	}
 }

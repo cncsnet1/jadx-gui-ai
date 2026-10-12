@@ -33,6 +33,10 @@ public final class AiContextDialog extends JDialog {
 	private boolean send;
 
 	public AiContextDialog(MainWindow owner, AiProfile profile, AiRequestContext context) {
+		this(owner, profile, context, context.preview());
+	}
+
+	public AiContextDialog(MainWindow owner, AiProfile profile, AiRequestContext context, String requestPreview) {
 		super(owner, AiText.str("request_preview_title"), ModalityType.APPLICATION_MODAL);
 		JPanel root = new JPanel(new BorderLayout(0, 14));
 		root.setBorder(BorderFactory.createEmptyBorder(20, 22, 18, 22));
@@ -82,7 +86,7 @@ public final class AiContextDialog extends JDialog {
 		sourcePane.add(split, BorderLayout.CENTER);
 		JTabbedPane tabs = new JTabbedPane();
 		tabs.addTab(AiText.str("source_snapshot"), sourcePane);
-		JTextArea request = new JTextArea(context.preview());
+		JTextArea request = new JTextArea(requestPreview);
 		request.setEditable(false);
 		request.setLineWrap(true);
 		request.setWrapStyleWord(true);

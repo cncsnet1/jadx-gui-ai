@@ -150,7 +150,7 @@ exit /b %ERRORLEVEL%
 
 def add_docs(archive, prefix, version, platform, runtime):
     files = [ROOT / name for name in ("README.md", "LICENSE", "NOTICE", "CONTRIBUTING.md")]
-    files += [ROOT / "docs/AI_WORKBENCH.md", ROOT / "docs/JAVA_DEOBFUSCATION.md", ROOT / "docs/RELEASING.md"]
+    files += [ROOT / "docs/AI_WORKBENCH.md", ROOT / "docs/JAVA_DEOBFUSCATION.md", ROOT / "docs/MCP.md", ROOT / "docs/RELEASING.md"]
     files += sorted((ROOT / "docs/releases").glob("*.md"))
     files += [ROOT / "docs/examples/TokenStore.java"]
     files += sorted((ROOT / "docs/images").glob("*.png"))

@@ -104,6 +104,52 @@ public final class OpenAiClient implements AiClient {
 		return exchange(builder.build(), cancellation, (input, lastRead) -> readStream(input, lastRead, cancellation, onContent));
 	}
 
+	/** Non-streaming function calls for the optional MCP loop. Ordinary analysis continues to stream. */
+	public JsonObject completeWithTools(String model, JsonArray messages, JsonArray tools, int maxTokens,
+			AiCancellation cancellation) throws IOException, InterruptedException {
+		JsonObject body = new JsonObject();
+		body.addProperty("model", model);
+		body.addProperty("temperature", 0.3);
+		body.addProperty("max_tokens", maxTokens);
+		body.addProperty("stream", false);
+		body.add("messages", messages);
+		body.add("tools", tools);
+		body.addProperty("tool_choice", "auto");
+		body.addProperty("parallel_tool_calls", false);
+		HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint).timeout(timeout)
+				.header("Content-Type", "application/json").header("Accept", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8));
+		if (!apiKey.isEmpty()) {
+			builder.header("Authorization", "Bearer " + apiKey);
+		}
+		return exchange(builder.build(), cancellation, (input, lastRead) -> {
+			StringBuilder json = new StringBuilder();
+			try (InputStreamReader reader = new InputStreamReader(input, StandardCharsets.UTF_8)) {
+				char[] buffer = new char[4096];
+				int count;
+				while ((count = reader.read(buffer)) != -1) {
+					cancellation.check();
+					lastRead.set(System.nanoTime());
+					json.append(buffer, 0, count);
+					if (json.length() > MAX_RESPONSE_CHARS) {
+						throw new IOException("AI tool response exceeds size limit");
+					}
+				}
+			}
+			try {
+				JsonObject result = JsonParser.parseString(json.toString()).getAsJsonObject();
+				JsonObject choice = result.getAsJsonArray("choices").get(0).getAsJsonObject();
+				String reason = choice.get("finish_reason").getAsString();
+				if (!"stop".equals(reason) && !"tool_calls".equals(reason)) {
+					throw new IOException("AI tool response incomplete");
+				}
+				return choice.getAsJsonObject("message");
+			} catch (RuntimeException e) {
+				throw new IOException("Invalid AI tool response", e);
+			}
+		});
+	}
+
 	/** Read a bounded model catalog; some compatible providers only support manual model IDs. */
 	public List<String> models(AiCancellation cancellation) throws IOException, InterruptedException {
 		String address = endpoint.toString();

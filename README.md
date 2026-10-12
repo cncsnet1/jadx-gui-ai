@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/cncsnet1/jadx-gui-ai/releases"><img src="https://img.shields.io/badge/preview-v2.0.0--beta.2-38b2ac?style=flat-square" alt="v2.0.0-beta.2"></a>
+  <a href="https://github.com/cncsnet1/jadx-gui-ai/releases"><img src="https://img.shields.io/badge/preview-v2.0.0--beta.3-38b2ac?style=flat-square" alt="v2.0.0-beta.3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-64748b?style=flat-square" alt="Apache-2.0"></a>
   <img src="https://img.shields.io/badge/desktop-Windows%20%7C%20macOS%20%7C%20Linux-6085cc?style=flat-square" alt="Windows, macOS, Linux">
   <img src="https://img.shields.io/badge/AI-cloud%20%2B%20local-8b72cf?style=flat-square" alt="Cloud and local models">
@@ -40,9 +40,13 @@
 
 ### 一个重新组织的分析空间
 
-左侧导航连接首页、项目和代码助手；顶部 `Ctrl / ⌘ + K` 命令面板可以快速找到菜单功能。专注模式临时收起两侧面板，再次点击即可恢复布局。首页、编辑器和 AI 侧栏使用统一的石墨灰与青绿色风格，同时提供浅色主题。
+左侧导航连接开始页、工作区和代码助手；顶部 `Ctrl / ⌘ + K` 命令面板可以快速找到菜单功能。专注模式临时收起两侧面板，再次点击即可恢复布局。开始页、编辑器和 AI 侧栏使用统一的石墨灰与青绿色风格，同时提供浅色主题。
+
+“开始”页以文件导入为主要入口：整页支持拖入文件，也可以点击“选择文件”或“打开项目”。加载成功后自动进入“工作区”，展开文件树并显示“文件已就绪”；返回开始页时，可以一键回到正在阅读的源码。“工作区”始终用于进入文件浏览，不会因重复点击而隐藏文件树。
 
 ![全新工作空间首页](docs/images/workspace-home-graphite.png)
+
+![加载成功后自动进入工作区](docs/images/workspace-ready-graphite.png)
 
 ### 用自然语言找到代码入口
 
@@ -91,24 +95,26 @@
 
 ## 下载与启动
 
-前往 [GitHub Releases](https://github.com/cncsnet1/jadx-gui-ai/releases) 下载 **v2.0.0-beta.2** 对应的平台包。前五种包均内置 **Eclipse Temurin 21**，无需另装 Java；AI 模型需自行连接。
+> **新增：双向 MCP。** 外部 AI 可以查询当前 JADX 项目的类、源码与引用；内置 AI 也可以连接 stdio / HTTP MCP 工具，逐次确认调用。入口为「工具 → MCP 连接中心」，详见 [MCP 使用说明](docs/MCP.md)。
+
+前往 [GitHub Releases](https://github.com/cncsnet1/jadx-gui-ai/releases) 下载 **v2.0.0-beta.3** 对应的平台包。前五种包均内置 **Eclipse Temurin 21**，无需另装 Java；AI 模型需自行连接。
 
 | 你的环境 | 发布包 | 启动入口 |
 | --- | --- | --- |
-| Windows x64 | `jadx-gui-ai-2.0.0-beta.2-windows-x64.zip` | 解压后双击 `jadx-gui-ai.exe` |
-| macOS · Apple Silicon | `jadx-gui-ai-2.0.0-beta.2-macos-arm64.zip` | 解压后打开 `JADX GUI AI.app` |
-| macOS · Intel | `jadx-gui-ai-2.0.0-beta.2-macos-x64.zip` | 解压后打开 `JADX GUI AI.app` |
-| Linux x64 | `jadx-gui-ai-2.0.0-beta.2-linux-x64.tar.gz` | `./bin/jadx-gui-ai` |
-| Linux ARM64 | `jadx-gui-ai-2.0.0-beta.2-linux-arm64.tar.gz` | `./bin/jadx-gui-ai` |
-| 自备 Java · 通用包 | `jadx-gui-ai-2.0.0-beta.2-portable.zip` | `bin/jadx-gui-ai` 或 `bin\jadx-gui-ai.bat` |
+| Windows x64 | `jadx-gui-ai-2.0.0-beta.3-windows-x64.zip` | 解压后双击 `jadx-gui-ai.exe` |
+| macOS · Apple Silicon | `jadx-gui-ai-2.0.0-beta.3-macos-arm64.zip` | 解压后打开 `JADX GUI AI.app` |
+| macOS · Intel | `jadx-gui-ai-2.0.0-beta.3-macos-x64.zip` | 解压后打开 `JADX GUI AI.app` |
+| Linux x64 | `jadx-gui-ai-2.0.0-beta.3-linux-x64.tar.gz` | `./bin/jadx-gui-ai` |
+| Linux ARM64 | `jadx-gui-ai-2.0.0-beta.3-linux-arm64.tar.gz` | `./bin/jadx-gui-ai` |
+| 自备 Java · 通用包 | `jadx-gui-ai-2.0.0-beta.3-portable.zip` | `bin/jadx-gui-ai` 或 `bin\jadx-gui-ai.bat` |
 
-通用包使用 64 位 Java 17+，推荐 Java 21。Linux 桌面包面向 glibc 环境，需要图形桌面；macOS 包尚未签名、公证，首次打开请按系统提示操作。各平台的实际验证范围见 [发布说明](docs/releases/v2.0.0-beta.2.md)。
+通用包使用 64 位 Java 17+，推荐 Java 21。Linux 桌面包面向 glibc 环境，需要图形桌面；macOS 包尚未签名、公证，首次打开请按系统提示操作。各平台的实际验证范围见 [发布说明](docs/releases/v2.0.0-beta.3.md)。
 
 包内同时保留 JADX CLI：`bin/jadx`，Windows 使用 `bin\jadx.bat`。发布附件提供 `SHA256SUMS.txt` 和 `release-manifest.json`，用于核对下载内容与内置运行环境。
 
 ## 三分钟开始第一次分析
 
-1. **打开文件**：载入 APK、DEX、JAR 或 CLASS，找到你关心的方法。
+1. **打开文件**：拖入 APK、DEX、JAR 或 CLASS，或点击“选择文件”。加载后自动进入工作区，展开左侧文件树并双击类或资源；浏览源码无需先配置 AI。
 2. **连接模型**：打开“AI 工作台 → AI 设置”，填写兼容 Chat Completions 的服务地址、模型 ID 和认证信息。点击“测试模型响应”，成功后保存。
 3. **选定上下文**：把光标放在方法中，或直接选中代码；按需补充最多 3 个调用者。首次使用可先点“上下文”检查消息。
 4. **提出问题**：选择解释、追踪、审计或命名，也可以输入具体问题，例如“这个参数从哪里进入，现有代码还缺哪些证据？”

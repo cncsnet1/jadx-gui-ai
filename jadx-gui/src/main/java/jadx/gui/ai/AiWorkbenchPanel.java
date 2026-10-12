@@ -57,6 +57,9 @@ import jadx.api.data.ICodeComment;
 import jadx.api.data.impl.JadxCodeComment;
 import jadx.api.data.impl.JadxCodeData;
 import jadx.api.data.impl.JadxNodeRef;
+import jadx.gui.mcp.McpApproval;
+import jadx.gui.mcp.McpText;
+import jadx.gui.mcp.McpToolSession;
 import jadx.gui.settings.JadxProject;
 import jadx.gui.treemodel.JNode;
 import jadx.gui.treemodel.JRenameNode;
@@ -91,6 +94,7 @@ public final class AiWorkbenchPanel extends JPanel {
 	private final JLabel resultSource = new JLabel();
 	private final JLabel resultProvider = new JLabel();
 	private final JCheckBox callers = new JCheckBox(AiText.str("callers"));
+	private final JCheckBox mcpTools = new JCheckBox(McpText.str("enable_ai"));
 	private final JComboBox<String> task = new JComboBox<>();
 	private final JComboBox<String> profileChoice = new JComboBox<>();
 	private final JLabel destination = new JLabel();
@@ -178,6 +182,11 @@ public final class AiWorkbenchPanel extends JPanel {
 		hide.addActionListener(e -> window.setAiWorkbenchVisible(false));
 		JPanel headingActions = new JPanel(new FlowLayout(FlowLayout.TRAILING, 2, 0));
 		headingActions.setOpaque(false);
+		JButton mcp = new JButton("MCP");
+		mcp.setToolTipText(McpText.str("title"));
+		mcp.putClientProperty("JButton.buttonType", "toolBarButton");
+		mcp.addActionListener(event -> window.showMcpDialog());
+		headingActions.add(mcp);
 		headingActions.add(settings);
 		headingActions.add(hide);
 		heading.add(headingActions, BorderLayout.EAST);
@@ -207,6 +216,13 @@ public final class AiWorkbenchPanel extends JPanel {
 		callers.setToolTipText(AiText.str("callers_tip"));
 		callers.setOpaque(false);
 		extras.add(callers);
+		mcpTools.setToolTipText(McpText.str("enable_ai_hint"));
+		mcpTools.setOpaque(false);
+		mcpTools.addActionListener(event -> updateDestination());
+		extras.add(mcpTools);
+		JMenuItem mcpConnections = new JMenuItem(McpText.str("title"));
+		mcpConnections.addActionListener(event -> window.showMcpDialog());
+		extras.add(mcpConnections);
 		extras.addSeparator();
 		extras.add(menuItem(button("pin", this::pinSource)));
 		discover.setToolTipText(AiText.str("search_subtitle"));
@@ -527,7 +543,7 @@ public final class AiWorkbenchPanel extends JPanel {
 			return;
 		}
 		AiProfile profile = selectedProfile();
-		destination.setText(profile.getName() + " · " + profile.destination());
+		destination.setText(profile.getName() + " · " + profile.destination() + (mcpTools.isSelected() ? " · MCP" : ""));
 		destination.setToolTipText(profile.getName() + " · " + profile.getModel() + " · " + profile.destination());
 	}
 
@@ -574,8 +590,18 @@ public final class AiWorkbenchPanel extends JPanel {
 			List<Map<String, String>> previous =
 					Objects.equals(historyContext, contextId) ? new ArrayList<>(history) : Collections.emptyList();
 			AiRequestContext context = new AiRequestContext(evidence, previous, userPrompt, !kind.equals("rename"));
+			final McpToolSession toolSession;
+			try {
+				toolSession = mcpTools.isSelected() ? new McpToolSession(window.getMcpManager().clients(),
+						(connection, tool, arguments, token) -> McpApproval.review(window,
+								profile.getName() + " · " + profile.destination(), connection, tool, arguments, token)) : null;
+			} catch (IllegalArgumentException e) {
+				showFailure(id, project, e);
+				return;
+			}
 			if (inspect) {
-				AiContextDialog dialog = new AiContextDialog(window, profile, context);
+				AiContextDialog dialog = new AiContextDialog(window, profile, context,
+						toolSession == null ? context.preview() : toolSession.preview(context.getMessages()));
 				dialog.setVisible(true);
 				if (epoch != id || window.getProject() != project) {
 					return;
@@ -586,13 +612,13 @@ public final class AiWorkbenchPanel extends JPanel {
 					return;
 				}
 			}
-			startAnalysis(id, project, profile, kind, userPrompt, contextId, context);
+			startAnalysis(id, project, profile, kind, userPrompt, contextId, context, toolSession);
 		}), failure -> showFailure(id, project, failure));
 	}
 
 	private void startAnalysis(long id, JadxProject project, AiProfile profile, String kind, String userPrompt,
-			String contextId, AiRequestContext context) {
-		final AiClient client;
+			String contextId, AiRequestContext context, McpToolSession toolSession) {
+		final OpenAiClient client;
 		try {
 			client = new OpenAiClient(profile.getUrl(), profile.resolveApiKey());
 		} catch (IllegalArgumentException e) {
@@ -615,10 +641,21 @@ public final class AiWorkbenchPanel extends JPanel {
 		resultProvider.setToolTipText(profile.destination());
 		renderedLength = -1;
 		setBusy(true);
-		status.setText(AiText.str("running"));
+		status.setText(AiText.str("running") + (toolSession == null ? "" : " · MCP"));
 		renderTimer.start();
 		runner.submit(token -> {
-			String text = client.stream(profile.getModel(), context.getMessages(), 0.3, profile.getOutputTokens(), token, buffer::append);
+			String text;
+			if (toolSession == null) {
+				text = client.stream(profile.getModel(), context.getMessages(), 0.3, profile.getOutputTokens(), token, buffer::append);
+			} else {
+				text = toolSession.run(client, profile.getModel(), context.getMessages(), profile.getOutputTokens(), token,
+						tool -> SwingUtilities.invokeLater(() -> {
+							if (epoch == id && window.getProject() == project) {
+								status.setText("MCP · " + tool);
+							}
+						}));
+				buffer.append(text);
+			}
 			return new AiRecord(AiText.str(kind) + " · " + primary.getTitle(), text, context.getEvidence(), profile);
 		}, completed -> SwingUtilities.invokeLater(() -> {
 			if (epoch != id || window.getProject() != project) {
@@ -716,6 +753,7 @@ public final class AiWorkbenchPanel extends JPanel {
 		task.setEnabled(!value);
 		callers.setEnabled(!value);
 		profileChoice.setEnabled(!value);
+		mcpTools.setEnabled(!value);
 		preview.setEnabled(!value && current != null);
 		progress.setVisible(value);
 		stop.setEnabled(value);
@@ -745,6 +783,7 @@ public final class AiWorkbenchPanel extends JPanel {
 	}
 
 	private void resetProject() {
+		mcpTools.setSelected(false);
 		cancel();
 		result = null;
 		followTimer.stop();

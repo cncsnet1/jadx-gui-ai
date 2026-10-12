@@ -39,6 +39,12 @@ public final class WorkspaceLayout {
 		}
 	}
 
+	public void showExplorer() {
+		home = false;
+		focus = false;
+		explorer = true;
+	}
+
 	public void setAssistant(boolean value) {
 		assistant = value;
 		if (value) {

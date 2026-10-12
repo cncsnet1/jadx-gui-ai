@@ -39,6 +39,7 @@ import jadx.cli.JadxCLIArgs;
 import jadx.cli.LogHelper;
 import jadx.gui.ai.AiConfiguration;
 import jadx.gui.ai.AiProfile;
+import jadx.gui.mcp.McpConnection;
 import jadx.gui.cache.code.CodeCacheMode;
 import jadx.gui.cache.usage.UsageCacheMode;
 import jadx.gui.settings.data.ShortcutsWrapper;
@@ -124,6 +125,7 @@ public class JadxSettings extends JadxCLIArgs {
 	@SerializedName("AiMaxTokens")
 	private String aiMaxTokens;
 	private AiConfiguration aiConfiguration;
+	private List<McpConnection> mcpConnections = new ArrayList<>();
 	private boolean aiWorkbenchVisible = true;
 	private int aiWorkbenchWidth = 390;
 
@@ -221,6 +223,19 @@ public class JadxSettings extends JadxCLIArgs {
 
 	public AiConfiguration getAiConfiguration() {
 		return aiConfiguration;
+	}
+
+	public List<McpConnection> getMcpConnections() {
+		List<McpConnection> copy = new ArrayList<>();
+		if (mcpConnections != null) {
+			mcpConnections.stream().filter(java.util.Objects::nonNull).forEach(connection -> copy.add(connection.copy()));
+		}
+		return copy;
+	}
+
+	public void setMcpConnections(List<McpConnection> connections) {
+		mcpConnections = new ArrayList<>();
+		connections.forEach(connection -> mcpConnections.add(connection.copy()));
 	}
 
 	public void setAiConfiguration(AiConfiguration config) {

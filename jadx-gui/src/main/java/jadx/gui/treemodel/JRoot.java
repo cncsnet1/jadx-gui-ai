@@ -5,7 +5,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import javax.swing.Icon;
@@ -34,7 +36,12 @@ public class JRoot extends JNode {
 	private final List<JNode> customNodes = new ArrayList<>();
 
 	public JRoot(JadxWrapper wrapper) {
+		this(wrapper, false);
+	}
+
+	public JRoot(JadxWrapper wrapper, boolean flatPackages) {
 		this.wrapper = wrapper;
+		this.flatPackages = flatPackages;
 	}
 
 	public final void update() {
@@ -51,8 +58,9 @@ public class JRoot extends JNode {
 		}
 	}
 
-	private JResource getHierarchyResources(List<ResourceFile> resources) {
+	static JResource getHierarchyResources(List<ResourceFile> resources) {
 		JResource root = new JResource(null, NLS.str("tree.resources_title"), JResType.ROOT);
+		Map<String, JResource> directories = new HashMap<>();
 		String splitPathStr = Pattern.quote(File.separator);
 		for (ResourceFile rf : resources) {
 			String rfName;
@@ -63,12 +71,16 @@ public class JRoot extends JNode {
 			}
 			String[] parts = new File(rfName).getPath().split(splitPathStr);
 			JResource curRf = root;
+			StringBuilder directoryPath = new StringBuilder();
 			int count = parts.length;
 			for (int i = 0; i < count - 1; i++) {
 				String name = parts[i];
-				JResource subRF = getResourceByName(curRf, name);
+				directoryPath.append(name).append(File.separatorChar);
+				String key = directoryPath.toString();
+				JResource subRF = directories.get(key);
 				if (subRF == null) {
 					subRF = new JResource(null, name, JResType.DIR);
+					directories.put(key, subRF);
 					curRf.addSubNode(subRF);
 				}
 				curRf = subRF;
@@ -79,15 +91,6 @@ public class JRoot extends JNode {
 		root.sortSubNodes();
 		root.update();
 		return root;
-	}
-
-	private JResource getResourceByName(JResource rf, String name) {
-		for (JResource sub : rf.getSubNodes()) {
-			if (sub.getName().equals(name)) {
-				return sub;
-			}
-		}
-		return null;
 	}
 
 	public @Nullable JNode searchNode(JNode node) {

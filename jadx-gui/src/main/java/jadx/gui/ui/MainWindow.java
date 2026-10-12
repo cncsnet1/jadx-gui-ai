@@ -1,6 +1,7 @@
 package jadx.gui.ui;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.DisplayMode;
@@ -73,8 +74,6 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ch.qos.logback.classic.Level;
-
 import jadx.api.JadxArgs;
 import jadx.api.JavaClass;
 import jadx.api.JavaNode;
@@ -95,6 +94,8 @@ import jadx.core.utils.files.FileUtils;
 import jadx.gui.JadxWrapper;
 import jadx.gui.ai.AiText;
 import jadx.gui.ai.AiWorkbenchPanel;
+import jadx.gui.mcp.McpManager;
+import jadx.gui.mcp.McpText;
 import jadx.gui.cache.manager.CacheManager;
 import jadx.gui.device.debugger.BreakpointManager;
 import jadx.gui.events.services.RenameService;
@@ -134,6 +135,7 @@ import jadx.gui.ui.dialog.ADBDialog;
 import jadx.gui.ui.dialog.AboutDialog;
 import jadx.gui.ui.dialog.AiSearchDialog;
 import jadx.gui.ui.dialog.AiSettingDialog;
+import jadx.gui.ui.dialog.McpDialog;
 import jadx.gui.ui.dialog.ExceptionDialog;
 import jadx.gui.ui.dialog.ExportProjectDialog;
 import jadx.gui.ui.dialog.LogViewerDialog;
@@ -147,6 +149,7 @@ import jadx.gui.ui.panel.ContentPanel;
 import jadx.gui.ui.panel.IssuesPanel;
 import jadx.gui.ui.panel.JDebuggerPanel;
 import jadx.gui.ui.panel.ProgressPanel;
+import jadx.gui.ui.panel.StartPagePanel;
 import jadx.gui.ui.popupmenu.RecentProjectsMenuListener;
 import jadx.gui.ui.tab.EditorSyncManager;
 import jadx.gui.ui.tab.NavigationController;
@@ -157,6 +160,7 @@ import jadx.gui.ui.tab.TabsController;
 import jadx.gui.ui.tab.dnd.TabDndController;
 import jadx.gui.ui.treenodes.StartPageNode;
 import jadx.gui.ui.treenodes.SummaryNode;
+import jadx.gui.ui.workspace.ProjectReadyPanel;
 import jadx.gui.ui.workspace.WorkspaceChrome;
 import jadx.gui.ui.workspace.WorkspaceLayout;
 import jadx.gui.update.JadxUpdate;
@@ -210,9 +214,13 @@ public class MainWindow extends JFrame {
 	private transient JSplitPane quickTabsAndCodeSplitPane;
 	private transient JSplitPane aiSplitPane;
 	private transient AiWorkbenchPanel aiWorkbench;
+	private final transient McpManager mcpManager = new McpManager();
+	private transient McpDialog mcpDialog;
 	private transient ActionHandler aiWorkbenchAction;
 	private final WorkspaceLayout workspaceLayout;
 	private WorkspaceChrome workspaceChrome;
+	private JPanel editorContent;
+	private ProjectReadyPanel projectReadyPanel;
 	private JPanel explorerHeading;
 	private int explorerWidth;
 	private boolean explorerLayoutPending;
@@ -247,6 +255,8 @@ public class MainWindow extends JFrame {
 	private final List<ILoadListener> loadListeners = new ArrayList<>();
 	private final List<Consumer<JRoot>> treeUpdateListener = new ArrayList<>();
 	private boolean loaded;
+	private boolean loading;
+	private @Nullable Runnable pendingProjectAction;
 	private boolean settingsOpen = false;
 
 	private final ShortcutsController shortcutsController;
@@ -257,6 +267,11 @@ public class MainWindow extends JFrame {
 
 	public MainWindow(JadxSettings settings) {
 		this.settings = settings;
+		mcpManager.setChangeListener(() -> SwingUtilities.invokeLater(() -> {
+			if (workspaceChrome != null) {
+				workspaceChrome.refresh();
+			}
+		}));
 		this.workspaceLayout = new WorkspaceLayout(settings.isAiWorkbenchVisible());
 		this.explorerWidth = Math.max(220, settings.getTreeWidth());
 		this.project = new JadxProject(this);
@@ -356,6 +371,9 @@ public class MainWindow extends JFrame {
 	}
 
 	private void showOpenDialog(FileOpenMode mode) {
+		if (deferWhileLoading(() -> showOpenDialog(mode))) {
+			return;
+		}
 		saveAll();
 		if (!ensureProjectIsSaved()) {
 			return;
@@ -377,11 +395,17 @@ public class MainWindow extends JFrame {
 	}
 
 	public void addFiles(List<Path> addPaths) {
+		if (deferWhileLoading(() -> addFiles(addPaths))) {
+			return;
+		}
 		project.setFilePaths(ListUtils.distinctMergeSortedLists(addPaths, project.getFilePaths()));
 		reopen();
 	}
 
 	private void newProject() {
+		if (deferWhileLoading(this::newProject)) {
+			return;
+		}
 		saveAll();
 		if (!ensureProjectIsSaved()) {
 			return;
@@ -507,14 +531,18 @@ public class MainWindow extends JFrame {
 	}
 
 	private void open(List<Path> paths, Runnable onFinish) {
+		List<Path> inputs = new ArrayList<>(paths);
+		if (deferWhileLoading(() -> open(inputs, onFinish))) {
+			return;
+		}
 		saveAll();
 		closeAll();
-		if (paths.size() == 1 && openSingleFile(paths.get(0), onFinish)) {
+		if (inputs.size() == 1 && openSingleFile(inputs.get(0), onFinish)) {
 			return;
 		}
 		// start new project
 		project = new JadxProject(this);
-		project.setFilePaths(paths);
+		project.setFilePaths(inputs);
 		loadFiles(onFinish);
 	}
 
@@ -542,6 +570,9 @@ public class MainWindow extends JFrame {
 	}
 
 	public void reopen() {
+		if (deferWhileLoading(this::reopen)) {
+			return;
+		}
 		synchronized (ReloadProject.EVENT) {
 			saveAll();
 			closeAll();
@@ -574,38 +605,67 @@ public class MainWindow extends JFrame {
 			onFinish.run();
 			return;
 		}
+		loading = true;
+		workspaceChrome.showLoading(project.getFilePaths().get(0).toString());
+		update();
+		boolean flatPackages = isFlattenPackage;
 		AtomicReference<Exception> wrapperException = new AtomicReference<>();
+		AtomicReference<JRoot> preparedTree = new AtomicReference<>();
 		backgroundExecutor.execute(NLS.str("progress.load"),
 				() -> {
 					try {
 						wrapper.open();
+						// Build a detached model: large APK trees must not block Swing painting or input.
+						preparedTree.set(buildTree(flatPackages));
 					} catch (Exception e) {
 						wrapperException.set(e);
+						wrapper.close();
 					}
 				},
 				status -> {
-					if (wrapperException.get() != null) {
-						closeAll();
-						Exception e = wrapperException.get();
-						if (e instanceof RuntimeException) {
-							throw (RuntimeException) e;
-						} else {
-							throw new JadxRuntimeException("Project load error", e);
-						}
-					}
-					if (status == TaskStatus.CANCEL_BY_MEMORY) {
-						showHeapUsageBar();
-						UiUtils.errorMessage(this, NLS.str("message.memoryLow"));
+					if (wrapperException.get() != null || status != TaskStatus.COMPLETE || preparedTree.get() == null) {
+						projectLoadFailed(status, wrapperException.get());
 						return;
 					}
-					if (status != TaskStatus.COMPLETE) {
-						LOG.warn("Loading task incomplete, status: {}", status);
-						return;
+					try {
+						checkLoadedStatus();
+						onOpen(preparedTree.get(), onFinish);
+					} catch (Exception e) {
+						projectLoadFailed(TaskStatus.ERROR, e);
 					}
-					checkLoadedStatus();
-					onOpen();
-					onFinish.run();
 				});
+	}
+
+	private boolean deferWhileLoading(Runnable action) {
+		if (!loading) {
+			return false;
+		}
+		// Keep only the latest request; never close a decompiler still being loaded on another thread.
+		pendingProjectAction = action;
+		return true;
+	}
+
+	private void finishLoading() {
+		loading = false;
+		Runnable pending = pendingProjectAction;
+		pendingProjectAction = null;
+		update();
+		if (pending != null) {
+			SwingUtilities.invokeLater(pending);
+		}
+	}
+
+	private void projectLoadFailed(TaskStatus status, @Nullable Exception error) {
+		LOG.error("Project load failed, status: {}", status, error);
+		clearTree();
+		notifyLoadListeners(false);
+		if (status == TaskStatus.CANCEL_BY_MEMORY) {
+			showHeapUsageBar();
+			workspaceChrome.showLoadError(NLS.str("message.memoryLow"));
+		} else {
+			workspaceChrome.showLoadError(AiText.str("studio_load_failed_hint"));
+		}
+		finishLoading();
 	}
 
 	private void saveAll() {
@@ -618,6 +678,7 @@ public class MainWindow extends JFrame {
 	}
 
 	private void closeAll() {
+		workspaceChrome.showWorkspace();
 		notifyLoadListeners(false);
 		cancelBackgroundJobs();
 		navController.reset();
@@ -634,26 +695,15 @@ public class MainWindow extends JFrame {
 	}
 
 	private void checkLoadedStatus() {
-		if (!wrapper.getClasses().isEmpty()) {
+		if (!wrapper.getClasses().isEmpty() || !wrapper.getResources().isEmpty()) {
 			return;
 		}
 		int errors = issuesPanel.getErrorsCount();
-		if (errors > 0) {
-			int result = JOptionPane.showConfirmDialog(this,
-					NLS.str("message.load_errors", errors),
-					NLS.str("message.errorTitle"),
-					JOptionPane.OK_CANCEL_OPTION,
-					JOptionPane.ERROR_MESSAGE);
-			if (result == JOptionPane.OK_OPTION) {
-				showLogViewer(LogOptions.allWithLevel(Level.ERROR));
-			}
-		} else {
-			UiUtils.showMessageBox(this, NLS.str("message.no_classes"));
-		}
+		throw new JadxRuntimeException(errors > 0 ? NLS.str("message.load_errors", errors) : NLS.str("message.no_classes"));
 	}
 
-	private void onOpen() {
-		initTree();
+	private void onOpen(JRoot preparedTree, Runnable onFinish) {
+		installTree(preparedTree);
 		updateLiveReload(project.isEnableLiveReload());
 		BreakpointManager.init(project.getFilePaths().get(0).toAbsolutePath().getParent());
 		treeExpansionService.load(project.getTreeExpansions());
@@ -661,14 +711,22 @@ public class MainWindow extends JFrame {
 		backgroundExecutor.execute(NLS.str("progress.load"),
 				() -> preLoadOpenTabs(openTabs),
 				status -> {
-					restoreOpenTabs(openTabs);
-					if (tabbedPane.getSelectedContentPanel() == null) {
-						workspaceLayout.setHome(false);
-						refreshWorkspaceLayout();
+					if (status != TaskStatus.COMPLETE) {
+						projectLoadFailed(status, null);
+						return;
 					}
-					runInitialBackgroundJobs();
-					notifyLoadListeners(true);
-					update();
+					try {
+						restoreOpenTabs(openTabs);
+						runInitialBackgroundJobs();
+						projectReadyPanel.refresh();
+						notifyLoadListeners(true);
+						showWorkspaceExplorer();
+						workspaceChrome.showWorkspace();
+						onFinish.run();
+						finishLoading();
+					} catch (Exception e) {
+						projectLoadFailed(TaskStatus.ERROR, e);
+					}
 				});
 	}
 
@@ -695,11 +753,6 @@ public class MainWindow extends JFrame {
 					liveReloadMenuItem.setState(state);
 					liveReloadMenuItem.setEnabled(true);
 				});
-	}
-
-	private void addTreeCustomNodes() {
-		treeRoot.replaceCustomNode(ApkSignature.getApkSignature(wrapper));
-		treeRoot.replaceCustomNode(new SummaryNode(this));
 	}
 
 	private boolean ensureProjectIsSaved() {
@@ -760,7 +813,9 @@ public class MainWindow extends JFrame {
 
 	public void update() {
 		UiUtils.uiThreadGuard();
-		newProjectAction.setEnabled(!project.isInitial());
+		newProjectAction.setEnabled(!loading && !project.isInitial());
+		flatPkgButton.setEnabled(!loading);
+		flatPkgMenuItem.setEnabled(!loading);
 		saveProjectAction.setEnabled(loaded && !project.isSaved());
 		deobfToggleBtn.setSelected(settings.isDeobfuscationOn());
 		renameMappings.onUpdate(loaded);
@@ -847,11 +902,20 @@ public class MainWindow extends JFrame {
 	}
 
 	public void initTree() {
-		treeRoot = new JRoot(wrapper);
-		treeRoot.setFlatPackages(isFlattenPackage);
+		installTree(buildTree(isFlattenPackage));
+	}
+
+	private JRoot buildTree(boolean flatPackages) {
+		JRoot root = new JRoot(wrapper, flatPackages);
+		root.replaceCustomNode(ApkSignature.getApkSignature(wrapper));
+		root.replaceCustomNode(new SummaryNode(this));
+		root.update();
+		return root;
+	}
+
+	private void installTree(JRoot root) {
+		treeRoot = root;
 		treeModel.setRoot(treeRoot);
-		addTreeCustomNodes();
-		treeRoot.update();
 		reloadTree();
 	}
 
@@ -1227,6 +1291,9 @@ public class MainWindow extends JFrame {
 		tools.add(deobfMenuItem);
 		tools.add(quarkAction);
 		tools.add(openDeviceAction);
+		JMenuItem mcp = new JMenuItem(McpText.str("title"));
+		mcp.addActionListener(event -> showMcpDialog());
+		tools.add(mcp);
 
 		JMenu help = new JadxMenu(NLS.str("menu.help"), shortcutsController);
 		help.setMnemonic(KeyEvent.VK_H);
@@ -1433,11 +1500,15 @@ public class MainWindow extends JFrame {
 		tabbedPane = new TabbedPane(this, tabsController);
 		tabbedPane.setMinimumSize(new Dimension(150, 150));
 		new TabDndController(tabbedPane, settings);
+		editorContent = new JPanel(new CardLayout());
+		editorContent.add(tabbedPane, "editors");
+		projectReadyPanel = new ProjectReadyPanel(this);
+		editorContent.add(projectReadyPanel, "ready");
 
 		quickTabsAndCodeSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 		quickTabsAndCodeSplitPane.setResizeWeight(0.15);
 		quickTabsAndCodeSplitPane.setDividerSize(0);
-		quickTabsAndCodeSplitPane.setRightComponent(tabbedPane);
+		quickTabsAndCodeSplitPane.setRightComponent(editorContent);
 
 		aiWorkbench = new AiWorkbenchPanel(this);
 		aiWorkbench.setVisible(false);
@@ -1456,6 +1527,7 @@ public class MainWindow extends JFrame {
 		treeSplitPane.setRightComponent(rightSplitPane);
 
 		new DropTarget(this, DnDConstants.ACTION_COPY, new MainDropTarget(this));
+		new FileDropSupport(this::open, this::setFileDropActive).install(mainPanel);
 
 		heapUsageBar = new HeapUsageBar();
 		mainPanel.add(heapUsageBar, BorderLayout.SOUTH);
@@ -1578,6 +1650,10 @@ public class MainWindow extends JFrame {
 
 		dispose();
 		aiWorkbench.close();
+		mcpManager.close();
+		if (mcpDialog != null) {
+			mcpDialog.dispose();
+		}
 		System.exit(0);
 	}
 
@@ -1630,8 +1706,13 @@ public class MainWindow extends JFrame {
 	}
 
 	public void notifyLoadListeners(boolean loaded) {
+		mcpManager.projectLoaded(loaded);
 		this.loaded = loaded;
 		loadListeners.removeIf(listener -> listener.update(loaded));
+	}
+
+	public boolean isProjectLoaded() {
+		return loaded;
 	}
 
 	public void addTreeUpdateListener(Consumer<JRoot> listener) {
@@ -1658,6 +1739,18 @@ public class MainWindow extends JFrame {
 		return aiWorkbench;
 	}
 
+	public McpManager getMcpManager() {
+		return mcpManager;
+	}
+
+	public void showMcpDialog() {
+		if (mcpDialog == null || !mcpDialog.isDisplayable()) {
+			mcpDialog = new McpDialog(this);
+		}
+		mcpDialog.setVisible(true);
+		mcpDialog.toFront();
+	}
+
 	public void setAiWorkbenchVisible(boolean visible) {
 		workspaceLayout.setAssistant(visible);
 		settings.setAiWorkbenchVisible(visible);
@@ -1669,6 +1762,9 @@ public class MainWindow extends JFrame {
 	}
 
 	public void showWorkspaceHome() {
+		if (!loading) {
+			workspaceChrome.showWorkspace();
+		}
 		JNode node = tabsController.getTabs().stream().map(TabBlueprint::getNode)
 				.filter(StartPageNode.class::isInstance).findFirst().orElseGet(StartPageNode::new);
 		tabsController.selectTab(node);
@@ -1680,17 +1776,39 @@ public class MainWindow extends JFrame {
 		refreshWorkspaceLayout();
 	}
 
+	void setFileDropActive(boolean active) {
+		ContentPanel selected = tabbedPane.getSelectedContentPanel();
+		if (selected instanceof StartPagePanel) {
+			((StartPagePanel) selected).setFileDropActive(active);
+		}
+	}
+
 	public void toggleWorkspaceFocus() {
 		workspaceLayout.toggleFocus();
 		refreshWorkspaceLayout();
 	}
 
-	public void toggleWorkspaceExplorer() {
-		workspaceLayout.toggleExplorer();
+	public void showWorkspaceExplorer() {
+		if (!loaded) {
+			return;
+		}
+		// The workspace is a destination, not a visibility toggle. Leave the start page
+		// while retaining any source tabs so that returning resumes the current file.
+		List<JNode> homeTabs = tabsController.getTabs().stream().map(TabBlueprint::getNode)
+				.filter(StartPageNode.class::isInstance).collect(java.util.stream.Collectors.toList());
+		homeTabs.forEach(tabsController::closeTab);
+		workspaceLayout.showExplorer();
 		refreshWorkspaceLayout();
 	}
 
+	public void focusWorkspaceExplorer() {
+		showWorkspaceExplorer();
+		tree.requestFocusInWindow();
+	}
+
 	private void refreshWorkspaceLayout() {
+		((CardLayout) editorContent.getLayout()).show(editorContent,
+				loaded && !workspaceLayout.isHome() && tabbedPane.getTabCount() == 0 ? "ready" : "editors");
 		boolean explorerVisible = workspaceLayout.isExplorerVisible();
 		boolean assistantVisible = workspaceLayout.isAssistantVisible();
 		boolean openingExplorer = explorerVisible && !treeSplitPane.getLeftComponent().isVisible();
