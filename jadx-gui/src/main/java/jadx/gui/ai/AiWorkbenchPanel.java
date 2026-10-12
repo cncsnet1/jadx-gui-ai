@@ -1,11 +1,11 @@
 package jadx.gui.ai;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
@@ -30,11 +30,12 @@ import javax.swing.JEditorPane;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.KeyStroke;
@@ -64,10 +65,13 @@ import jadx.gui.ui.codearea.AbstractCodeContentPanel;
 import jadx.gui.ui.codearea.CodeArea;
 import jadx.gui.ui.dialog.AiContextDialog;
 import jadx.gui.ui.dialog.AiInvestigationDialog;
+import jadx.gui.ui.dialog.AiSearchDialog;
 import jadx.gui.ui.dialog.AiSettingDialog;
 import jadx.gui.ui.dialog.CommentDialog;
 import jadx.gui.ui.dialog.RenameDialog;
 import jadx.gui.ui.panel.ContentPanel;
+import jadx.gui.ui.workspace.WorkspaceIcon;
+import jadx.gui.utils.ui.WorkbenchUi;
 
 /** Source-first workbench. Project switches invalidate every pending callback. */
 public final class AiWorkbenchPanel extends JPanel {
@@ -76,6 +80,14 @@ public final class AiWorkbenchPanel extends JPanel {
 	private final MainWindow window;
 	private final AiTaskRunner runner = new AiTaskRunner();
 	private final JLabel selection = new JLabel();
+	private final JTabbedPane tabs = new JTabbedPane();
+	private final JPanel answerDeck = new JPanel(new CardLayout());
+	private final JPanel resultHeading = WorkbenchUi.transparent();
+	private final JPanel resultFooter = WorkbenchUi.transparent();
+	private final JLabel contextCaption = WorkbenchUi.mutedLabel(AiText.str("studio_context"));
+	private final JPanel composer = WorkbenchUi.card(12);
+	private final JPanel composerFooter = WorkbenchUi.transparent();
+	private boolean compact;
 	private final JLabel resultSource = new JLabel();
 	private final JLabel resultProvider = new JLabel();
 	private final JCheckBox callers = new JCheckBox(AiText.str("callers"));
@@ -100,6 +112,7 @@ public final class AiWorkbenchPanel extends JPanel {
 	private final JButton export = button("export", this::exportResult);
 	private final JButton investigate = button("investigate", this::investigate);
 	private final JButton preview = button("context_preview", () -> request(true));
+	private final JButton discover = new JButton(AiText.str("search_title") + "  ↗");
 	private final Timer followTimer;
 	private final Timer renderTimer;
 	private final Parser markdown = Parser.builder().build();
@@ -119,8 +132,8 @@ public final class AiWorkbenchPanel extends JPanel {
 		super(new BorderLayout(0, 12));
 		this.window = window;
 		setBorder(BorderFactory.createEmptyBorder(14, 14, 10, 14));
-		setPreferredSize(new Dimension(390, 650));
-		setMinimumSize(new Dimension(285, 200));
+		setPreferredSize(new Dimension(420, 650));
+		setMinimumSize(new Dimension(320, 200));
 		putClientProperty("FlatLaf.style", "background: $Panel.background");
 		followTimer = new Timer(180, e -> capture());
 		followTimer.setRepeats(false);
@@ -134,6 +147,7 @@ public final class AiWorkbenchPanel extends JPanel {
 				if (window.getProject() != project) {
 					return;
 				}
+				discover.setEnabled(loaded);
 				if (!loaded) {
 					resetProject();
 				} else {
@@ -151,8 +165,9 @@ public final class AiWorkbenchPanel extends JPanel {
 	}
 
 	private void buildUi() {
-		JPanel heading = new JPanel(new BorderLayout(8, 8));
-		JLabel title = new JLabel(AiText.str("title"));
+		JPanel heading = WorkbenchUi.transparent();
+		JLabel title = new JLabel(AiText.str("studio_assistant_title"), new WorkspaceIcon(WorkspaceIcon.Kind.AI, 23), JLabel.LEADING);
+		title.setIconTextGap(10);
 		title.setFont(title.getFont().deriveFont(Font.BOLD, title.getFont().getSize2D() + 3));
 		heading.add(title, BorderLayout.CENTER);
 		JButton settings = button("settings", () -> new AiSettingDialog(window, window.getSettings()).setVisible(true));
@@ -162,36 +177,46 @@ public final class AiWorkbenchPanel extends JPanel {
 		hide.putClientProperty("JButton.buttonType", "toolBarButton");
 		hide.addActionListener(e -> window.setAiWorkbenchVisible(false));
 		JPanel headingActions = new JPanel(new FlowLayout(FlowLayout.TRAILING, 2, 0));
+		headingActions.setOpaque(false);
 		headingActions.add(settings);
 		headingActions.add(hide);
 		heading.add(headingActions, BorderLayout.EAST);
-		heading.add(new JLabel(AiText.str("subtitle")), BorderLayout.SOUTH);
-		add(heading, BorderLayout.NORTH);
+		JPanel top = WorkbenchUi.transparent();
+		top.add(heading, BorderLayout.NORTH);
+		add(top, BorderLayout.NORTH);
 
-		JTabbedPane tabs = new JTabbedPane();
-		JPanel analysis = new JPanel(new BorderLayout(0, 8));
-		JPanel context = new JPanel();
-		context.setLayout(new BoxLayout(context, BoxLayout.Y_AXIS));
+		JPanel analysis = WorkbenchUi.transparent();
+		JPanel context = WorkbenchUi.card(12);
+		JPanel sourceHeading = WorkbenchUi.transparent();
+		sourceHeading.add(contextCaption, BorderLayout.NORTH);
 		selection.setText(AiText.str("empty"));
 		selection.putClientProperty("html.disable", true);
-		selection.setAlignmentX(LEFT_ALIGNMENT);
-		selection.setMaximumSize(new Dimension(Integer.MAX_VALUE, selection.getPreferredSize().height));
-		context.add(selection);
-		context.add(Box.createVerticalStrut(6));
-		callers.setToolTipText(AiText.str("callers_tip"));
-		callers.setAlignmentX(LEFT_ALIGNMENT);
-		context.add(callers);
-		JPanel modes = new JPanel(new BorderLayout(6, 0));
-		modes.setAlignmentX(LEFT_ALIGNMENT);
+		selection.setFont(selection.getFont().deriveFont(Font.BOLD));
+		sourceHeading.add(selection);
+		context.add(sourceHeading, BorderLayout.NORTH);
+		JPanel modes = WorkbenchUi.transparent();
 		for (String key : TASKS) {
 			task.addItem(AiText.str(key));
 		}
-		modes.add(task, BorderLayout.CENTER);
-		modes.add(button("pin", this::pinSource), BorderLayout.EAST);
-		context.add(Box.createVerticalStrut(8));
+		modes.add(task);
+		JButton options = new JButton(AiText.str("studio_context_options"));
+		options.putClientProperty("JButton.buttonType", "toolBarButton");
+		modes.add(options, BorderLayout.EAST);
 		context.add(modes);
-		profileChoice.setAlignmentX(LEFT_ALIGNMENT);
-		profileChoice.setMaximumSize(new Dimension(Integer.MAX_VALUE, profileChoice.getPreferredSize().height));
+		JPopupMenu extras = new JPopupMenu();
+		callers.setToolTipText(AiText.str("callers_tip"));
+		callers.setOpaque(false);
+		extras.add(callers);
+		extras.addSeparator();
+		extras.add(menuItem(button("pin", this::pinSource)));
+		discover.setToolTipText(AiText.str("search_subtitle"));
+		discover.addActionListener(e -> AiSearchDialog.search(window, AiSearchDialog.SearchPreset.CLASS));
+		extras.add(menuItem(discover));
+		options.addActionListener(e -> {
+			SwingUtilities.updateComponentTreeUI(extras);
+			extras.show(options, 0, options.getHeight());
+		});
+		top.add(context);
 		profileChoice.setToolTipText(AiText.str("profile_switch_hint"));
 		DefaultListCellRenderer profileRenderer = new DefaultListCellRenderer();
 		profileRenderer.putClientProperty("html.disable", true);
@@ -202,17 +227,11 @@ public final class AiWorkbenchPanel extends JPanel {
 			}
 		});
 		task.addActionListener(e -> updateDestination());
-		context.add(Box.createVerticalStrut(8));
-		context.add(profileChoice);
 		destination.putClientProperty("html.disable", true);
-		destination.setAlignmentX(LEFT_ALIGNMENT);
-		destination.setMaximumSize(new Dimension(Integer.MAX_VALUE, destination.getPreferredSize().height + 4));
 		destination.setFont(destination.getFont().deriveFont(destination.getFont().getSize2D() - 1));
-		context.add(Box.createVerticalStrut(4));
-		context.add(destination);
-		analysis.add(context, BorderLayout.NORTH);
 
 		answer.setEditable(false);
+		answer.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
 		answer.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true);
 		answer.addHyperlinkListener(e -> {
 			if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED && e.getDescription().matches("source:S[1-9][0-9]*")) {
@@ -222,23 +241,38 @@ public final class AiWorkbenchPanel extends JPanel {
 				}
 			}
 		});
-		JPanel resultPane = new JPanel(new BorderLayout(0, 6));
+		JPanel resultPane = WorkbenchUi.transparent();
 		resultSource.putClientProperty("html.disable", true);
-		JPanel resultHeading = new JPanel(new BorderLayout(0, 3));
+		resultHeading.setLayout(new BorderLayout(0, 3));
 		resultHeading.add(resultSource, BorderLayout.NORTH);
 		resultProvider.putClientProperty("html.disable", true);
 		resultProvider.setFont(resultProvider.getFont().deriveFont(resultProvider.getFont().getSize2D() - 1));
 		resultHeading.add(resultProvider, BorderLayout.SOUTH);
 		resultPane.add(resultHeading, BorderLayout.NORTH);
-		resultPane.add(new JScrollPane(answer), BorderLayout.CENTER);
-		JPanel resultActions = new JPanel(new GridLayout(2, 2, 4, 4));
-		resultActions.add(save);
-		resultActions.add(export);
-		resultActions.add(comment);
-		resultActions.add(rename);
-		JPanel resultFooter = new JPanel(new BorderLayout(0, 6));
-		resultFooter.add(investigate, BorderLayout.NORTH);
-		resultFooter.add(resultActions, BorderLayout.SOUTH);
+		JScrollPane responseScroll = new JScrollPane(answer);
+		responseScroll.setBorder(BorderFactory.createEmptyBorder());
+		answerDeck.add(responseScroll, "answer");
+		JScrollPane emptyScroll = new JScrollPane(emptyResponse());
+		emptyScroll.setBorder(BorderFactory.createEmptyBorder());
+		emptyScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+		answerDeck.add(emptyScroll, "empty");
+		resultPane.add(answerDeck, BorderLayout.CENTER);
+		JPopupMenu resultActions = new JPopupMenu();
+		resultActions.add(menuItem(save));
+		resultActions.add(menuItem(export));
+		resultActions.addSeparator();
+		resultActions.add(menuItem(comment));
+		resultActions.add(menuItem(rename));
+		JButton more = new JButton(new WorkspaceIcon(WorkspaceIcon.Kind.MORE, 20));
+		more.setToolTipText(AiText.str("studio_result_actions"));
+		more.getAccessibleContext().setAccessibleName(AiText.str("studio_result_actions"));
+		more.addActionListener(e -> {
+			SwingUtilities.updateComponentTreeUI(resultActions);
+			resultActions.show(more, 0, more.getHeight());
+		});
+		resultFooter.setLayout(new BorderLayout(6, 0));
+		resultFooter.add(investigate, BorderLayout.CENTER);
+		resultFooter.add(more, BorderLayout.EAST);
 		resultPane.add(resultFooter, BorderLayout.SOUTH);
 		JPanel evidencePane = new JPanel(new BorderLayout());
 		DefaultListCellRenderer sourceRenderer = new DefaultListCellRenderer();
@@ -262,11 +296,8 @@ public final class AiWorkbenchPanel extends JPanel {
 		});
 		evidencePane.add(new JScrollPane(sourceList), BorderLayout.CENTER);
 		evidencePane.add(button("jump", () -> jump(sourceList.getSelectedValue())), BorderLayout.SOUTH);
-		JSplitPane details = new JSplitPane(JSplitPane.VERTICAL_SPLIT, resultPane, evidencePane);
-		details.setResizeWeight(0.85);
-		details.setDividerLocation(330);
-		evidencePane.setMinimumSize(new Dimension(100, 80));
-		analysis.add(details, BorderLayout.CENTER);
+
+		analysis.add(resultPane, BorderLayout.CENTER);
 		sourceList.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent e) {
@@ -300,15 +331,16 @@ public final class AiWorkbenchPanel extends JPanel {
 		}));
 		notes.add(noteActions, BorderLayout.SOUTH);
 		tabs.addTab(AiText.str("analyze"), analysis);
+		tabs.addTab(AiText.str("evidence"), evidencePane);
 		tabs.addTab(AiText.str("records"), notes);
 		add(tabs, BorderLayout.CENTER);
 
-		JPanel composer = new JPanel(new BorderLayout(0, 7));
-		composer.add(new JLabel(AiText.str("question")), BorderLayout.NORTH);
+		composer.add(profileChoice, BorderLayout.NORTH);
 		question.setLineWrap(true);
 		question.setWrapStyleWord(true);
-		question.putClientProperty("JTextField.placeholderText", AiText.str("question"));
+		question.putClientProperty("JTextField.placeholderText", AiText.str("studio_ask_hint"));
 		question.setToolTipText(AiText.str("question"));
+		question.getAccessibleContext().setAccessibleName(AiText.str("studio_ask_hint"));
 		question.getInputMap().put(KeyStroke.getKeyStroke("control ENTER"), "ai-send");
 		question.getActionMap().put("ai-send", new javax.swing.AbstractAction() {
 			@Override
@@ -317,15 +349,16 @@ public final class AiWorkbenchPanel extends JPanel {
 			}
 		});
 		composer.add(new JScrollPane(question), BorderLayout.CENTER);
-		JPanel controls = new JPanel(new BorderLayout(8, 0));
+		JPanel controls = WorkbenchUi.transparent();
 		progress.setIndeterminate(true);
 		progress.setVisible(false);
 		controls.add(progress, BorderLayout.CENTER);
 		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.TRAILING, 4, 0));
+		buttons.setOpaque(false);
 		buttons.add(preview);
 		buttons.add(stop);
 		buttons.add(send);
-		send.putClientProperty("JButton.buttonType", "roundRect");
+		WorkbenchUi.primary(send);
 		controls.add(buttons, BorderLayout.EAST);
 		status.setEditable(false);
 		status.setFocusable(false);
@@ -333,13 +366,86 @@ public final class AiWorkbenchPanel extends JPanel {
 		status.setWrapStyleWord(true);
 		status.setOpaque(false);
 		status.setRows(2);
-		JPanel footer = new JPanel(new BorderLayout(0, 6));
-		footer.add(controls, BorderLayout.NORTH);
-		footer.add(status, BorderLayout.SOUTH);
-		composer.add(footer, BorderLayout.SOUTH);
+		composerFooter.add(controls, BorderLayout.NORTH);
+		composerFooter.add(destination, BorderLayout.CENTER);
+		composerFooter.add(status, BorderLayout.SOUTH);
+		composer.add(composerFooter, BorderLayout.SOUTH);
 		add(composer, BorderLayout.SOUTH);
 		setBusy(false);
+		renderAnswer();
 		status.setText(AiText.str("ready"));
+	}
+
+	private JPanel emptyResponse() {
+		JPanel panel = WorkbenchUi.transparent();
+		panel.setLayout(new BoxLayout(panel, BoxLayout.PAGE_AXIS));
+		panel.setBorder(BorderFactory.createEmptyBorder(26, 14, 20, 14));
+		JLabel icon = WorkbenchUi.accentTitle("", 0);
+		icon.setIcon(new WorkspaceIcon(WorkspaceIcon.Kind.AI, 35));
+		panel.add(icon);
+		panel.add(Box.createVerticalStrut(16));
+		panel.add(WorkbenchUi.title(AiText.str("studio_response_empty"), 7));
+		panel.add(Box.createVerticalStrut(10));
+		JTextArea hint = WorkbenchUi.body(AiText.str("studio_assistant_body"));
+		hint.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+		panel.add(hint);
+		panel.add(Box.createVerticalStrut(18));
+		String[] prompts = { "studio_prompt_explain", "studio_prompt_trace", "studio_prompt_audit" };
+		for (int i = 0; i < prompts.length; i++) {
+			int mode = i;
+			String prompt = AiText.str(prompts[i]);
+			JButton suggestion = new JButton(prompt);
+			suggestion.setHorizontalAlignment(JButton.LEADING);
+			suggestion.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+			suggestion.setToolTipText(prompt);
+			suggestion.addActionListener(e -> {
+				if (!busy) {
+					task.setSelectedIndex(mode);
+					question.setText(prompt);
+					question.requestFocusInWindow();
+				}
+			});
+			panel.add(suggestion);
+			panel.add(Box.createVerticalStrut(8));
+		}
+		for (java.awt.Component component : panel.getComponents()) {
+			if (component instanceof javax.swing.JComponent) {
+				((javax.swing.JComponent) component).setAlignmentX(LEFT_ALIGNMENT);
+			}
+		}
+		panel.add(Box.createVerticalGlue());
+		return panel;
+	}
+
+	private static JMenuItem menuItem(JButton button) {
+		JMenuItem item = new JMenuItem(button.getText());
+		item.setEnabled(button.isEnabled());
+		item.addActionListener(e -> button.doClick());
+		button.addPropertyChangeListener(e -> {
+			if ("enabled".equals(e.getPropertyName())) {
+				item.setEnabled(button.isEnabled());
+			}
+		});
+		return item;
+	}
+
+	@Override
+	public void doLayout() {
+		boolean nextCompact = getHeight() < 600;
+		if (compact != nextCompact) {
+			compact = nextCompact;
+			question.setRows(compact ? 2 : 3);
+			status.setRows(compact ? 1 : 2);
+			contextCaption.setVisible(!compact);
+			resultHeading.setVisible(result != null && !compact);
+			setBorder(BorderFactory.createEmptyBorder(compact ? 8 : 14, 14, 10, 14));
+			((BorderLayout) getLayout()).setVgap(compact ? 6 : 12);
+			((BorderLayout) composer.getLayout()).setVgap(compact ? 4 : 12);
+			((BorderLayout) composerFooter.getLayout()).setVgap(compact ? 3 : 8);
+			int padding = compact ? 8 : 12;
+			composer.setBorder(BorderFactory.createEmptyBorder(padding, padding, padding, padding));
+		}
+		super.doLayout();
 	}
 
 	public void follow(CodeArea area) {
@@ -561,11 +667,15 @@ public final class AiWorkbenchPanel extends JPanel {
 				: String.format(AiText.str("investigate_count"), record.getFindings().size()));
 		investigate.setToolTipText(record.getFindings().isEmpty() ? AiText.str("findings_empty") : AiText.str("findings_hint"));
 		renderAnswer();
+		answer.setCaretPosition(0);
 		setBusy(false);
 	}
 
 	private void renderAnswer() {
 		String text = output.toString();
+		((CardLayout) answerDeck.getLayout()).show(answerDeck, text.isEmpty() && !busy && result == null ? "empty" : "answer");
+		resultHeading.setVisible(result != null && !compact);
+		resultFooter.setVisible(result != null);
 		if (text.length() == renderedLength) {
 			return;
 		}
@@ -609,6 +719,11 @@ public final class AiWorkbenchPanel extends JPanel {
 		preview.setEnabled(!value && current != null);
 		progress.setVisible(value);
 		stop.setEnabled(value);
+		stop.setVisible(value);
+		resultFooter.setVisible(result != null);
+		if (value) {
+			tabs.setSelectedIndex(0);
+		}
 		send.setEnabled(!value && current != null);
 		save.setEnabled(!value && result != null);
 		export.setEnabled(!value && result != null);

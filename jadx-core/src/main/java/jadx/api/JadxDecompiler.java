@@ -30,9 +30,11 @@ import jadx.api.plugins.JadxPlugin;
 import jadx.api.plugins.events.IJadxEvents;
 import jadx.api.plugins.input.ICodeLoader;
 import jadx.api.plugins.input.JadxCodeInput;
+import jadx.api.plugins.input.JadxInputPreprocessor;
 import jadx.api.plugins.pass.JadxPass;
 import jadx.api.plugins.pass.types.JadxAfterLoadPass;
 import jadx.api.plugins.pass.types.JadxPassType;
+import jadx.api.usage.impl.InMemoryUsageInfoCache;
 import jadx.api.utils.tasks.ITaskExecutor;
 import jadx.core.Jadx;
 import jadx.core.dex.attributes.AFlag;
@@ -150,7 +152,26 @@ public final class JadxDecompiler implements Closeable {
 		loadedInputs.clear();
 		List<Path> inputPaths = Utils.collectionMap(args.getInputFiles(), File::toPath);
 		List<Path> inputFiles = FileUtils.expandDirs(inputPaths);
+		List<Path> originalCodeInputs = inputFiles;
 		long start = System.currentTimeMillis();
+		for (PluginContext plugin : pluginManager.getResolvedPluginContexts()) {
+			for (JadxInputPreprocessor preprocessor : plugin.getInputPreprocessors()) {
+				try {
+					inputFiles = List.copyOf(preprocessor.process(Collections.unmodifiableList(inputFiles)));
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					throw new JadxRuntimeException("Input preprocessing interrupted", e);
+				} catch (Exception e) {
+					LOG.warn("Input preprocessing failed for plugin: {}; keeping previous inputs", plugin, e);
+				}
+			}
+		}
+		if (!inputFiles.equals(originalCodeInputs)) {
+			// Disk usage caches identify inputs by the original project paths.
+			// Transformed code must neither read nor overwrite those cached references.
+			addCloseable(args.getUsageInfoCache());
+			args.setUsageInfoCache(new InMemoryUsageInfoCache());
+		}
 		for (PluginContext plugin : pluginManager.getResolvedPluginContexts()) {
 			for (JadxCodeInput codeLoader : plugin.getCodeInputs()) {
 				try {

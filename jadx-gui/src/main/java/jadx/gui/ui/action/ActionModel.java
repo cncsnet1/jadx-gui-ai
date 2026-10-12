@@ -10,7 +10,6 @@ import javax.swing.ImageIcon;
 
 import io.reactivex.annotations.NonNull;
 
-import jadx.gui.ui.codearea.CodeArea;
 import jadx.gui.utils.NLS;
 import jadx.gui.utils.UiUtils;
 import jadx.gui.utils.shortcut.Shortcut;
@@ -53,7 +52,7 @@ public enum ActionModel {
 	COMMENT_SEARCH(MENU_TOOLBAR, "menu.comment_search", "menu.comment_search", "ui/usagesFinder",
 			Shortcut.keyboard(KeyEvent.VK_SEMICOLON, UiUtils.ctrlButton() | KeyEvent.SHIFT_DOWN_MASK)),
 
-	AI_SEARCH(MENU_TOOLBAR, "menu.ai_search", "menu.ai_search", "ui/ollama",
+	AI_SEARCH(MENU_TOOLBAR, "menu.ai_search", "menu.ai_search", "ui/ai-search",
 			Shortcut.keyboard(KeyEvent.VK_U, UiUtils.ctrlButton())),
 	GO_TO_MAIN_ACTIVITY(MENU_TOOLBAR, "menu.go_to_main_activity", "menu.go_to_main_activity", "ui/home",
 			Shortcut.keyboard(KeyEvent.VK_M, UiUtils.ctrlButton() | KeyEvent.SHIFT_DOWN_MASK)),

@@ -11,6 +11,7 @@ import jadx.api.plugins.data.IJadxPlugins;
 import jadx.api.plugins.events.IJadxEvents;
 import jadx.api.plugins.gui.JadxGuiContext;
 import jadx.api.plugins.input.JadxCodeInput;
+import jadx.api.plugins.input.JadxInputPreprocessor;
 import jadx.api.plugins.options.JadxPluginOptions;
 import jadx.api.plugins.pass.JadxPass;
 import jadx.api.plugins.resources.IResourcesLoader;
@@ -25,6 +26,11 @@ public interface JadxPluginContext {
 	void addPass(JadxPass pass);
 
 	void addCodeInput(JadxCodeInput codeInput);
+
+	/** Register preprocessing for code inputs, before any input plugin loads them. */
+	default void addInputPreprocessor(JadxInputPreprocessor preprocessor) {
+		throw new UnsupportedOperationException("Input preprocessing is not supported by this context");
+	}
 
 	void registerOptions(JadxPluginOptions options);
 

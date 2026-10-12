@@ -22,25 +22,30 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSeparator;
 import javax.swing.SwingConstants;
+import javax.swing.UIManager;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jadx.gui.utils.NLS;
+import jadx.gui.utils.ui.WorkbenchUi;
 
 public class AboutDialog extends JDialog {
 	private static final long serialVersionUID = 5763493590584039096L;
+	private static final Logger LOG = LoggerFactory.getLogger(AboutDialog.class);
 
 	public AboutDialog() {
 		initUI();
 	}
 
 	public final void initUI() {
-		// 定义更现代的字体和颜色
-		Font titleFont = new Font("Microsoft YaHei", Font.BOLD, 24);  // 标题使用微软雅黑
-		Font normalFont = new Font("Microsoft YaHei", Font.PLAIN, 13);
-		Font customFont = new Font("Microsoft YaHei", Font.ITALIC, 12);
+		Font normalFont = UIManager.getFont("Label.font");
+		Font titleFont = normalFont.deriveFont(Font.BOLD, normalFont.getSize2D() + 11);
+		Font customFont = normalFont.deriveFont(normalFont.getSize2D() - 1);
 
-		Color primaryColor = new Color(51, 122, 183);  // 主题蓝
-		Color secondaryColor = new Color(108, 117, 125);  // 次要文本颜色
-		Color accentColor = new Color(88, 166, 255);  // 强调色
+		Color primaryColor = WorkbenchUi.accent();
+		Color secondaryColor = WorkbenchUi.muted();
+		Color accentColor = primaryColor;
 
 		// Logo部分
 		URL logoURL = getClass().getResource("/logos/jadx-logo-48px.png");
@@ -49,14 +54,14 @@ public class AboutDialog extends JDialog {
 			logo = new ImageIcon(logoURL, "jadx logo");
 		}
 
-		JLabel name = new JLabel("JADX-GUI-AI", logo, SwingConstants.CENTER);  // 大写显示更专业
+		JLabel name = new JLabel("JADX-GUI-AI", logo, SwingConstants.CENTER); // 大写显示更专业
 		name.setFont(titleFont);
 		name.setForeground(primaryColor);
 		name.setAlignmentX(0.5f);
 
 		// 修改标语为中文
 		JLabel slogan = new JLabel("强大的 Java 反编译工具");
-		slogan.setFont(new Font("Microsoft YaHei", Font.PLAIN, 16));  // 使用微软雅黑字体
+		slogan.setFont(normalFont.deriveFont(normalFont.getSize2D() + 3));
 		slogan.setForeground(secondaryColor);
 		slogan.setAlignmentX(0.5f);
 
@@ -69,7 +74,6 @@ public class AboutDialog extends JDialog {
 		// 添加精美分隔线
 		JSeparator separator = new JSeparator(SwingConstants.HORIZONTAL);
 		separator.setMaximumSize(new Dimension(300, 1));
-		separator.setForeground(new Color(230, 230, 230));
 
 		// GitHub链接面板
 		JPanel socialPanel = new JPanel();
@@ -93,10 +97,12 @@ public class AboutDialog extends JDialog {
 			}
 
 			@Override
-			public void mousePressed(MouseEvent e) {}
+			public void mousePressed(MouseEvent e) {
+			}
 
 			@Override
-			public void mouseReleased(MouseEvent e) {}
+			public void mouseReleased(MouseEvent e) {
+			}
 
 			@Override
 			public void mouseEntered(MouseEvent e) {
@@ -118,7 +124,7 @@ public class AboutDialog extends JDialog {
 
 		// 二次开发信息
 		JLabel modifiedLabel = new JLabel("二次开发版本");
-		modifiedLabel.setFont(new Font("Microsoft YaHei", Font.BOLD, 14));
+		modifiedLabel.setFont(normalFont.deriveFont(Font.BOLD));
 		modifiedLabel.setForeground(accentColor);
 		modifiedLabel.setAlignmentX(0.5f);
 
@@ -158,7 +164,6 @@ public class AboutDialog extends JDialog {
 		JPanel mainPanel = new JPanel();
 		mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
 		mainPanel.setBorder(BorderFactory.createEmptyBorder(25, 40, 25, 40));
-		mainPanel.setBackground(Color.WHITE);
 
 		mainPanel.add(name);
 		mainPanel.add(Box.createRigidArea(new Dimension(0, 10)));
@@ -177,16 +182,13 @@ public class AboutDialog extends JDialog {
 		// 关闭按钮
 		JButton closeButton = new JButton("关闭");
 		closeButton.setFont(normalFont);
-		closeButton.setForeground(Color.WHITE);
-		closeButton.setBackground(primaryColor);
+		WorkbenchUi.primary(closeButton);
 		closeButton.setBorder(BorderFactory.createEmptyBorder(8, 20, 8, 20));
 		closeButton.setFocusPainted(false);
 		closeButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
 		closeButton.addActionListener(e -> dispose());
 
 		// 设置窗口属性
-		setBackground(Color.WHITE);
-		getContentPane().setBackground(Color.WHITE);
 		getContentPane().add(mainPanel, BorderLayout.CENTER);
 		getContentPane().add(closeButton, BorderLayout.SOUTH);
 
@@ -206,7 +208,7 @@ public class AboutDialog extends JDialog {
 		try {
 			Desktop.getDesktop().browse(new URI(url));
 		} catch (Exception e) {
-			e.printStackTrace();
+			LOG.warn("Failed to open browser", e);
 		}
 	}
 }

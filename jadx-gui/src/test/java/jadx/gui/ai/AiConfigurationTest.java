@@ -32,6 +32,7 @@ class AiConfigurationTest {
 		settings.setAiConfiguration(draft);
 		profile.setModel("unsaved-again");
 		assertThat(settings.getAiModel()).isEqualTo("edited-model");
+		assertThat(JadxSettingsAdapter.makeString(settings)).contains("\"AiMaxTokens\"").doesNotContain("\"aiMaxTokens\"");
 		assertThat(settings.getAiConfiguration().getDefaultProfile().getModel()).isEqualTo("edited-model");
 	}
 
@@ -49,10 +50,12 @@ class AiConfigurationTest {
 		audit.setUrl("https://example.test/v1");
 		config.getProfiles().add(audit);
 		config.setTaskProfile("audit", audit.getId());
+		config.setTaskProfile("search", audit.getId());
 		settings.setAiConfiguration(config);
 		JadxSettings restored = JadxSettingsAdapter.fromString(JadxSettingsAdapter.makeString(settings));
 		AiConfiguration copy = AiConfiguration.from(restored);
 		assertThat(copy.forTask("audit").getModel()).isEqualTo("deep");
+		assertThat(copy.forTask("search").getModel()).isEqualTo("deep");
 		assertThat(copy.forTask("explain").getModel()).isEqualTo("quick");
 		copy.forTask("audit").setModel("draft");
 		assertThat(restored.getAiConfiguration().forTask("audit").getModel()).isEqualTo("deep");

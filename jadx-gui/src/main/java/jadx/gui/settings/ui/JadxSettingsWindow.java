@@ -76,6 +76,8 @@ import jadx.gui.utils.NLS;
 import jadx.gui.utils.UiUtils;
 import jadx.gui.utils.ui.ActionHandler;
 import jadx.gui.utils.ui.DocumentUpdateListener;
+import jadx.gui.utils.ui.GraphiteLaf;
+import jadx.gui.utils.ui.WorkbenchLightLaf;
 
 public class JadxSettingsWindow extends JDialog {
 	private static final long serialVersionUID = -1804570470377354148L;
@@ -366,7 +368,18 @@ public class JadxSettingsWindow extends JDialog {
 		JComboBox<String> lafCbx = new JComboBox<>(LafManager.getThemes());
 		lafCbx.setSelectedItem(settings.getLafTheme());
 		lafCbx.addActionListener(e -> {
-			settings.setLafTheme((String) lafCbx.getSelectedItem());
+			String selected = (String) lafCbx.getSelectedItem();
+			settings.setLafTheme(selected);
+			// Pair the basic editor palettes with the workbench presets; preserve custom palettes.
+			String editorPath = settings.getEditorThemePath();
+			if (editorPath.equals(new EditorTheme("default").getPath()) || editorPath.equals(new EditorTheme("dark").getPath())
+					|| editorPath.equals(EditorTheme.GRAPHITE.getPath()) || editorPath.equals(EditorTheme.LIGHT.getPath())) {
+				if (GraphiteLaf.NAME.equals(selected)) {
+					themesCbx.setSelectedItem(EditorTheme.GRAPHITE);
+				} else if (WorkbenchLightLaf.NAME.equals(selected)) {
+					themesCbx.setSelectedItem(EditorTheme.LIGHT);
+				}
+			}
 			mainWindow.loadSettings();
 		});
 

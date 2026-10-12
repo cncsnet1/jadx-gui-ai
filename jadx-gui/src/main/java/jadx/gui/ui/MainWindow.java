@@ -4,7 +4,6 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.DisplayMode;
-import java.awt.Font;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.dnd.DnDConstants;
@@ -38,7 +37,7 @@ import java.util.function.Consumer;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
-import javax.swing.Box;
+import javax.swing.BorderFactory;
 import javax.swing.JCheckBox;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JDialog;
@@ -152,11 +151,14 @@ import jadx.gui.ui.popupmenu.RecentProjectsMenuListener;
 import jadx.gui.ui.tab.EditorSyncManager;
 import jadx.gui.ui.tab.NavigationController;
 import jadx.gui.ui.tab.QuickTabsTree;
+import jadx.gui.ui.tab.TabBlueprint;
 import jadx.gui.ui.tab.TabbedPane;
 import jadx.gui.ui.tab.TabsController;
 import jadx.gui.ui.tab.dnd.TabDndController;
 import jadx.gui.ui.treenodes.StartPageNode;
 import jadx.gui.ui.treenodes.SummaryNode;
+import jadx.gui.ui.workspace.WorkspaceChrome;
+import jadx.gui.ui.workspace.WorkspaceLayout;
 import jadx.gui.update.JadxUpdate;
 import jadx.gui.utils.CacheObject;
 import jadx.gui.utils.DesktopEntryUtils;
@@ -173,6 +175,7 @@ import jadx.gui.utils.fileswatcher.LiveReloadWorker;
 import jadx.gui.utils.shortcut.ShortcutsController;
 import jadx.gui.utils.ui.ActionHandler;
 import jadx.gui.utils.ui.NodeLabel;
+import jadx.gui.utils.ui.WorkbenchUi;
 
 public class MainWindow extends JFrame {
 	private static final Logger LOG = LoggerFactory.getLogger(MainWindow.class);
@@ -208,6 +211,12 @@ public class MainWindow extends JFrame {
 	private transient JSplitPane aiSplitPane;
 	private transient AiWorkbenchPanel aiWorkbench;
 	private transient ActionHandler aiWorkbenchAction;
+	private final WorkspaceLayout workspaceLayout;
+	private WorkspaceChrome workspaceChrome;
+	private JPanel explorerHeading;
+	private int explorerWidth;
+	private boolean explorerLayoutPending;
+	private boolean assistantLayoutPending;
 
 	private JTree tree;
 	private DefaultTreeModel treeModel;
@@ -248,6 +257,8 @@ public class MainWindow extends JFrame {
 
 	public MainWindow(JadxSettings settings) {
 		this.settings = settings;
+		this.workspaceLayout = new WorkspaceLayout(settings.isAiWorkbenchVisible());
+		this.explorerWidth = Math.max(220, settings.getTreeWidth());
 		this.project = new JadxProject(this);
 		this.wrapper = new JadxWrapper(this);
 		this.cacheObject = new CacheObject(wrapper);
@@ -279,10 +290,10 @@ public class MainWindow extends JFrame {
 	public void init() {
 		pack();
 		setLocationAndPosition();
-		treeSplitPane.setDividerLocation(settings.getTreeWidth());
+		treeSplitPane.setDividerLocation(explorerWidth);
 		heapUsageBar.setVisible(settings.isShowHeapUsageBar());
 		setVisible(true);
-		setAiWorkbenchVisible(settings.isAiWorkbenchVisible());
+		refreshWorkspaceLayout();
 		setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowAdapter() {
 			@Override
@@ -651,6 +662,10 @@ public class MainWindow extends JFrame {
 				() -> preLoadOpenTabs(openTabs),
 				status -> {
 					restoreOpenTabs(openTabs);
+					if (tabbedPane.getSelectedContentPanel() == null) {
+						workspaceLayout.setHome(false);
+						refreshWorkspaceLayout();
+					}
 					runInitialBackgroundJobs();
 					notifyLoadListeners(true);
 					update();
@@ -759,6 +774,9 @@ public class MainWindow extends JFrame {
 		}
 		setTitle((project.isSaved() ? "" : '*')
 				+ project.getName() + pathString + " - " + DEFAULT_TITLE);
+		if (workspaceChrome != null) {
+			workspaceChrome.refresh();
+		}
 	}
 
 	protected void resetCache() {
@@ -1250,44 +1268,25 @@ public class MainWindow extends JFrame {
 		updateLink = new Link();
 		updateLink.setVisible(false);
 
-		JToolBar toolbar = new JToolBar();
-		toolbar.setFloatable(false);
-		toolbar.add(openAction);
-		toolbar.add(addFilesAction);
-		toolbar.addSeparator();
-		toolbar.add(reloadAction);
-		toolbar.addSeparator();
-		toolbar.add(exportAction);
-		toolbar.addSeparator();
-		toolbar.add(syncAction);
-		toolbar.add(flatPkgButton);
-		toolbar.add(quickTabsAction.makeToggleButton());
-		toolbar.addSeparator();
-		toolbar.add(textSearchAction);
-		toolbar.add(clsSearchAction);
-		toolbar.add(commentSearchAction);
-		toolbar.add(goToMainActivityAction);
-		toolbar.add(goToApplicationAction);
-		toolbar.add(goToAndroidManifestAction);
-		toolbar.addSeparator();
-		toolbar.add(backAction);
-		toolbar.add(forwardAction);
-		toolbar.addSeparator();
-		toolbar.add(deobfToggleBtn);
-		toolbar.add(quarkAction);
-		toolbar.add(openDeviceAction);
-		toolbar.addSeparator();
-		toolbar.add(showLogAction);
-		toolbar.addSeparator();
-		toolbar.add(prefsAction);
-		toolbar.addSeparator();
-		toolbar.add(aiWorkbenchAction.makeToggleButton());
-
-		toolbar.addSeparator();
-		toolbar.add(Box.createHorizontalGlue());
-		toolbar.add(updateLink);
-
-		mainPanel.add(toolbar, BorderLayout.NORTH);
+		JToolBar explorerTools = new JToolBar();
+		explorerTools.setFloatable(false);
+		explorerTools.setOpaque(false);
+		explorerTools.setBorder(BorderFactory.createEmptyBorder(0, 8, 6, 8));
+		explorerTools.add(syncAction);
+		explorerTools.add(flatPkgButton);
+		explorerTools.add(clsSearchAction);
+		explorerHeading.add(explorerTools, BorderLayout.SOUTH);
+		mainPanel.removeAll();
+		workspaceChrome = new WorkspaceChrome(this, bottomSplitPane, heapUsageBar, updateLink,
+				openAction, aiSearchAction, prefsAction, showLogAction);
+		mainPanel.add(workspaceChrome, BorderLayout.CENTER);
+		mainPanel.add(progressPane, BorderLayout.SOUTH);
+		tabbedPane.addChangeListener(e -> {
+			ContentPanel selected = tabbedPane.getSelectedContentPanel();
+			workspaceLayout.setHome(selected == null ? !loaded : selected.getNode() instanceof StartPageNode);
+			refreshWorkspaceLayout();
+		});
+		refreshWorkspaceLayout();
 
 		nav.add(new HiddenMenuItem(backVariantAction));
 		nav.add(new HiddenMenuItem(forwardVariantAction));
@@ -1320,9 +1319,11 @@ public class MainWindow extends JFrame {
 	}
 
 	private void initUI() {
-		setMinimumSize(new Dimension(200, 150));
+		setMinimumSize(new Dimension(960, 640));
 		mainPanel = new JPanel(new BorderLayout());
 		treeSplitPane = new JSplitPane();
+		treeSplitPane.setBorder(BorderFactory.createEmptyBorder());
+		treeSplitPane.setContinuousLayout(true);
 		treeSplitPane.setResizeWeight(SPLIT_PANE_RESIZE_WEIGHT);
 		mainPanel.add(treeSplitPane);
 
@@ -1413,7 +1414,13 @@ public class MainWindow extends JFrame {
 
 		JPanel leftPane = new JPanel(new BorderLayout());
 		JScrollPane treeScrollPane = new JScrollPane(tree);
+		treeScrollPane.setBorder(BorderFactory.createEmptyBorder());
 		treeScrollPane.setMinimumSize(new Dimension(100, 150));
+		JLabel explorer = WorkbenchUi.mutedLabel(AiText.str("shell_explorer"));
+		explorer.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 12));
+		explorerHeading = WorkbenchUi.transparent();
+		explorerHeading.add(explorer, BorderLayout.NORTH);
+		leftPane.add(explorerHeading, BorderLayout.NORTH);
 
 		JPanel bottomPane = new JPanel(new BorderLayout());
 		bottomPane.add(issuesPanel, BorderLayout.PAGE_START);
@@ -1441,7 +1448,9 @@ public class MainWindow extends JFrame {
 		aiSplitPane.setBorder(null);
 
 		rightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+		rightSplitPane.setBorder(BorderFactory.createEmptyBorder());
 		rightSplitPane.setTopComponent(aiSplitPane);
+		rightSplitPane.setDividerSize(0);
 		rightSplitPane.setResizeWeight(SPLIT_PANE_RESIZE_WEIGHT);
 
 		treeSplitPane.setRightComponent(rightSplitPane);
@@ -1452,7 +1461,9 @@ public class MainWindow extends JFrame {
 		mainPanel.add(heapUsageBar, BorderLayout.SOUTH);
 
 		bottomSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+		bottomSplitPane.setBorder(BorderFactory.createEmptyBorder());
 		bottomSplitPane.setTopComponent(treeSplitPane);
+		bottomSplitPane.setDividerSize(0);
 		bottomSplitPane.setResizeWeight(SPLIT_PANE_RESIZE_WEIGHT);
 
 		mainPanel.add(bottomSplitPane, BorderLayout.CENTER);
@@ -1534,13 +1545,11 @@ public class MainWindow extends JFrame {
 		LafManager.updateLaf(settings);
 		aiWorkbench.refreshTheme();
 
-		Font font = settings.getFont();
-		Font largerFont = font.deriveFont(font.getSize() + 2.f);
-
-		setFont(largerFont);
+		setFont(javax.swing.UIManager.getFont("Label.font"));
 		setEditorTheme(settings.getEditorThemePath());
-		tree.setFont(largerFont);
-		tree.setRowHeight(-1);
+		tree.setFont(javax.swing.UIManager.getFont("Tree.font"));
+		tree.setRowHeight(Math.max(javax.swing.UIManager.getInt("Tree.rowHeight"),
+				tree.getFontMetrics(tree.getFont()).getHeight() + 8));
 
 		tabbedPane.loadSettings();
 		if (logPanel != null) {
@@ -1558,7 +1567,7 @@ public class MainWindow extends JFrame {
 		if (!ensureProjectIsSaved()) {
 			return;
 		}
-		settings.setTreeWidth(treeSplitPane.getDividerLocation());
+		settings.setTreeWidth(workspaceLayout.isExplorerVisible() ? treeSplitPane.getDividerLocation() : explorerWidth);
 		settings.saveWindowPos(this);
 		settings.setMainWindowExtendedState(getExtendedState());
 		if (debuggerPanel != null) {
@@ -1603,8 +1612,8 @@ public class MainWindow extends JFrame {
 	}
 
 	private void saveSplittersInfo() {
-		settings.setMainWindowVerticalSplitterLoc(bottomSplitPane.getDividerLocation());
 		if (debuggerPanel != null) {
+			settings.setMainWindowVerticalSplitterLoc(bottomSplitPane.getDividerLocation());
 			settings.setDebuggerStackFrameSplitterLoc(debuggerPanel.getLeftSplitterLocation());
 			settings.setDebuggerVarTreeSplitterLoc(debuggerPanel.getRightSplitterLocation());
 		}
@@ -1614,6 +1623,10 @@ public class MainWindow extends JFrame {
 		this.loadListeners.add(loadListener);
 		// set initial value
 		loadListener.update(loaded);
+	}
+
+	public void removeLoadListener(ILoadListener loadListener) {
+		this.loadListeners.remove(loadListener);
 	}
 
 	public void notifyLoadListeners(boolean loaded) {
@@ -1646,21 +1659,80 @@ public class MainWindow extends JFrame {
 	}
 
 	public void setAiWorkbenchVisible(boolean visible) {
-		boolean opening = visible && !aiWorkbench.isVisible();
-		if (!visible && aiWorkbench.isVisible() && aiSplitPane.getWidth() > 0) {
+		workspaceLayout.setAssistant(visible);
+		settings.setAiWorkbenchVisible(visible);
+		refreshWorkspaceLayout();
+	}
+
+	public WorkspaceLayout getWorkspaceLayout() {
+		return workspaceLayout;
+	}
+
+	public void showWorkspaceHome() {
+		JNode node = tabsController.getTabs().stream().map(TabBlueprint::getNode)
+				.filter(StartPageNode.class::isInstance).findFirst().orElseGet(StartPageNode::new);
+		tabsController.selectTab(node);
+		workspaceLayout.setHome(true);
+		ContentPanel selected = tabbedPane.getSelectedContentPanel();
+		if (selected != null) {
+			selected.loadSettings();
+		}
+		refreshWorkspaceLayout();
+	}
+
+	public void toggleWorkspaceFocus() {
+		workspaceLayout.toggleFocus();
+		refreshWorkspaceLayout();
+	}
+
+	public void toggleWorkspaceExplorer() {
+		workspaceLayout.toggleExplorer();
+		refreshWorkspaceLayout();
+	}
+
+	private void refreshWorkspaceLayout() {
+		boolean explorerVisible = workspaceLayout.isExplorerVisible();
+		boolean assistantVisible = workspaceLayout.isAssistantVisible();
+		boolean openingExplorer = explorerVisible && !treeSplitPane.getLeftComponent().isVisible();
+		boolean openingAssistant = assistantVisible && !aiWorkbench.isVisible();
+		if (!explorerVisible && !explorerLayoutPending && treeSplitPane.getLeftComponent().isVisible()
+				&& treeSplitPane.getDividerLocation() > 0) {
+			explorerWidth = treeSplitPane.getDividerLocation();
+		}
+		if (!assistantVisible && !assistantLayoutPending && aiWorkbench.isVisible() && aiWorkbench.getWidth() > 0) {
 			settings.setAiWorkbenchWidth(aiWorkbench.getWidth());
 		}
-		aiWorkbench.setVisible(visible);
-		aiSplitPane.setDividerSize(visible ? 6 : 0);
-		settings.setAiWorkbenchVisible(visible);
+		if (openingExplorer) {
+			explorerLayoutPending = true;
+		}
+		if (openingAssistant) {
+			assistantLayoutPending = true;
+		}
+		treeSplitPane.getLeftComponent().setVisible(explorerVisible);
+		treeSplitPane.setDividerSize(explorerVisible ? 8 : 0);
+		aiWorkbench.setVisible(assistantVisible);
+		aiSplitPane.setDividerSize(assistantVisible ? 8 : 0);
 		if (aiWorkbenchAction != null) {
-			aiWorkbenchAction.setSelected(visible);
+			aiWorkbenchAction.setSelected(assistantVisible);
 		}
-		if (opening) {
-			int width = settings.getAiWorkbenchWidth();
-			SwingUtilities.invokeLater(() -> aiSplitPane.setDividerLocation(
-					Math.max(150, aiSplitPane.getWidth() - width - aiSplitPane.getDividerSize())));
+		if (workspaceChrome != null) {
+			workspaceChrome.refresh();
 		}
+		revalidate();
+		SwingUtilities.invokeLater(() -> {
+			validate();
+			if (openingExplorer && workspaceLayout.isExplorerVisible()) {
+				treeSplitPane.setDividerLocation(Math.min(explorerWidth, Math.max(180, treeSplitPane.getWidth() / 3)));
+				validate();
+				explorerLayoutPending = false;
+			}
+			if (openingAssistant && workspaceLayout.isAssistantVisible()) {
+				aiSplitPane.setDividerLocation(Math.max(200, aiSplitPane.getWidth()
+						- settings.getAiWorkbenchWidth() - aiSplitPane.getDividerSize()));
+				validate();
+				assistantLayoutPending = false;
+			}
+		});
 	}
 
 	public NavigationController getNavController() {
@@ -1701,6 +1773,8 @@ public class MainWindow extends JFrame {
 		if (debuggerPanel != null) {
 			debuggerPanel.setVisible(false);
 			debuggerPanel = null;
+			bottomSplitPane.setBottomComponent(null);
+			bottomSplitPane.setDividerSize(0);
 		}
 	}
 
@@ -1714,6 +1788,7 @@ public class MainWindow extends JFrame {
 			debuggerPanel = new JDebuggerPanel(this);
 			debuggerPanel.loadSettings();
 			bottomSplitPane.setBottomComponent(debuggerPanel);
+			bottomSplitPane.setDividerSize(8);
 			int loc = settings.getMainWindowVerticalSplitterLoc();
 			if (loc == 0) {
 				loc = 300;
@@ -1744,6 +1819,7 @@ public class MainWindow extends JFrame {
 		};
 		logPanel = new LogPanel(this, logOptions, undock, this::hideDockedLog);
 		rightSplitPane.setBottomComponent(logPanel);
+		rightSplitPane.setDividerSize(8);
 	}
 
 	private void hideDockedLog() {
@@ -1753,6 +1829,7 @@ public class MainWindow extends JFrame {
 		logPanel.dispose();
 		logPanel = null;
 		rightSplitPane.setBottomComponent(null);
+		rightSplitPane.setDividerSize(0);
 	}
 
 	private void setQuickTabsVisibility(boolean visible) {

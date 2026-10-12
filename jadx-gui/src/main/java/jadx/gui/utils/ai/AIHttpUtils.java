@@ -28,7 +28,7 @@ import jadx.gui.ai.OpenAiClient;
 
 public class AIHttpUtils {
 	private static final Logger LOG = LoggerFactory.getLogger(AIHttpUtils.class);
-	private final String BASE_URL;
+	private final String baseUrl;
 	private static final int TIMEOUT_SECONDS = 60;
 
 	private final String apiKey;
@@ -37,7 +37,7 @@ public class AIHttpUtils {
 
 	public AIHttpUtils(String baseUrl, String apiKey) {
 		this.apiKey = apiKey;
-		this.BASE_URL = baseUrl;
+		this.baseUrl = baseUrl;
 		this.httpClient = HttpClient.newBuilder()
 				.connectTimeout(Duration.ofSeconds(TIMEOUT_SECONDS))
 				.build();
@@ -84,7 +84,7 @@ public class AIHttpUtils {
 		requestBody.addProperty("top_p", 0.7);
 
 		HttpRequest request = HttpRequest.newBuilder()
-				.uri(URI.create(BASE_URL + "/chat/completions"))
+				.uri(URI.create(baseUrl + "/chat/completions"))
 				.header("Content-Type", "application/json")
 				.header("Authorization", "Bearer " + apiKey)
 				.POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
@@ -121,7 +121,7 @@ public class AIHttpUtils {
 		requestBody.addProperty("speed", 1.0);
 
 		HttpRequest request = HttpRequest.newBuilder()
-				.uri(URI.create(BASE_URL + "/audio/speech"))
+				.uri(URI.create(baseUrl + "/audio/speech"))
 				.header("Content-Type", "application/json")
 				.header("Authorization", "Bearer " + apiKey)
 				.POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
@@ -158,7 +158,7 @@ public class AIHttpUtils {
 		requestBody.addProperty("inaddProperty", text);
 
 		HttpRequest request = HttpRequest.newBuilder()
-				.uri(URI.create(BASE_URL + "/embeddings"))
+				.uri(URI.create(baseUrl + "/embeddings"))
 				.header("Content-Type", "application/json")
 				.header("Authorization", "Bearer " + apiKey)
 				.POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
@@ -192,7 +192,7 @@ public class AIHttpUtils {
 	 */
 	public List<String> getModelList() throws IOException, InterruptedException {
 		HttpRequest request = HttpRequest.newBuilder()
-				.uri(URI.create(BASE_URL + "/models"))
+				.uri(URI.create(baseUrl + "/models"))
 				.header("Authorization", "Bearer " + apiKey)
 				.GET()
 				.build();
@@ -261,7 +261,7 @@ public class AIHttpUtils {
 	public String createStreamingChatCompletionWithCallback(String apiUrl, String model, List<Map<String, String>> messages,
 			double temperature, int maxTokens, Consumer<String> consumer) throws IOException, InterruptedException {
 		AiCancellation token = cancellation;
-		return new OpenAiClient(apiUrl == null ? BASE_URL : apiUrl, apiKey)
+		return new OpenAiClient(apiUrl == null ? baseUrl : apiUrl, apiKey)
 				.stream(model, messages, temperature, maxTokens, token, consumer);
 	}
 

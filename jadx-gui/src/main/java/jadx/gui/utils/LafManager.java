@@ -19,12 +19,14 @@ import com.formdev.flatlaf.themes.FlatMacDarkLaf;
 import com.formdev.flatlaf.themes.FlatMacLightLaf;
 
 import jadx.gui.settings.JadxSettings;
+import jadx.gui.utils.ui.GraphiteLaf;
+import jadx.gui.utils.ui.WorkbenchLightLaf;
 
 public class LafManager {
 	private static final Logger LOG = LoggerFactory.getLogger(LafManager.class);
 
 	public static final String SYSTEM_THEME_NAME = "default";
-	public static final String INITIAL_THEME_NAME = FlatLightLaf.NAME;
+	public static final String INITIAL_THEME_NAME = GraphiteLaf.NAME;
 
 	private static final Map<String, String> THEMES_MAP = initThemesMap();
 
@@ -66,6 +68,8 @@ public class LafManager {
 	private static Map<String, String> initThemesMap() {
 		Map<String, String> map = new LinkedHashMap<>();
 		map.put(SYSTEM_THEME_NAME, SYSTEM_THEME_NAME);
+		map.put(GraphiteLaf.NAME, GraphiteLaf.class.getName());
+		map.put(WorkbenchLightLaf.NAME, WorkbenchLightLaf.class.getName());
 
 		// default flatlaf themes
 		map.put(FlatLightLaf.NAME, FlatLightLaf.class.getName());

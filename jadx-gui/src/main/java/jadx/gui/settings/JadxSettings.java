@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.beust.jcommander.Parameter;
+import com.google.gson.annotations.SerializedName;
 
 import jadx.api.CommentsLevel;
 import jadx.api.DecompilationMode;
@@ -120,7 +121,8 @@ public class JadxSettings extends JadxCLIArgs {
 	private String aiApi;
 	private String aiApiKey;
 	private String aiModel;
-	private String AiMaxTokens;
+	@SerializedName("AiMaxTokens")
+	private String aiMaxTokens;
 	private AiConfiguration aiConfiguration;
 	private boolean aiWorkbenchVisible = true;
 	private int aiWorkbenchWidth = 390;
@@ -214,7 +216,7 @@ public class JadxSettings extends JadxCLIArgs {
 	}
 
 	public String getAiMaxTokens() {
-		return AiMaxTokens;
+		return aiMaxTokens;
 	}
 
 	public AiConfiguration getAiConfiguration() {
@@ -229,12 +231,12 @@ public class JadxSettings extends JadxCLIArgs {
 			aiApi = profile.getUrl();
 			aiApiKey = profile.getKeyEnvironment().isEmpty() ? profile.getApiKey() : "";
 			aiModel = profile.getModel();
-			AiMaxTokens = Integer.toString(profile.getOutputTokens());
+			aiMaxTokens = Integer.toString(profile.getOutputTokens());
 		}
 	}
 
 	public void setAiMaxTokens(String aiMaxTokens) {
-		AiMaxTokens = aiMaxTokens;
+		this.aiMaxTokens = aiMaxTokens;
 	}
 
 	public String getAiApi() {

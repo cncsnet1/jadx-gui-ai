@@ -22,6 +22,7 @@ import jadx.api.plugins.events.IJadxEvents;
 import jadx.api.plugins.gui.JadxGuiContext;
 import jadx.api.plugins.input.ICodeLoader;
 import jadx.api.plugins.input.JadxCodeInput;
+import jadx.api.plugins.input.JadxInputPreprocessor;
 import jadx.api.plugins.input.data.impl.MergeCodeLoader;
 import jadx.api.plugins.options.JadxPluginOptions;
 import jadx.api.plugins.options.OptionDescription;
@@ -43,6 +44,7 @@ public class PluginContext implements JadxPluginContext, JadxPluginRuntimeData, 
 	private AppContext appContext;
 
 	private final List<JadxCodeInput> codeInputs = new ArrayList<>();
+	private final List<JadxInputPreprocessor> inputPreprocessors = new ArrayList<>();
 	private @Nullable JadxPluginOptions options;
 	private @Nullable Supplier<String> inputsHashSupplier;
 
@@ -88,6 +90,15 @@ public class PluginContext implements JadxPluginContext, JadxPluginRuntimeData, 
 	@Override
 	public List<JadxCodeInput> getCodeInputs() {
 		return codeInputs;
+	}
+
+	@Override
+	public void addInputPreprocessor(JadxInputPreprocessor preprocessor) {
+		inputPreprocessors.add(Objects.requireNonNull(preprocessor));
+	}
+
+	public List<JadxInputPreprocessor> getInputPreprocessors() {
+		return inputPreprocessors;
 	}
 
 	@Override

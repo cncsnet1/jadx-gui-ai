@@ -14,6 +14,7 @@ dependencies {
 
 	runtimeOnly(project(":jadx-plugins:jadx-dex-input"))
 	runtimeOnly(project(":jadx-plugins:jadx-java-input"))
+	runtimeOnly(project(":jadx-plugins:jadx-java-deobf"))
 	runtimeOnly(project(":jadx-plugins:jadx-java-convert"))
 	runtimeOnly(project(":jadx-plugins:jadx-smali-input"))
 	runtimeOnly(project(":jadx-plugins:jadx-rename-mappings"))

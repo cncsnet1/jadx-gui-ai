@@ -2,9 +2,13 @@ package jadx.gui.ui.codearea;
 
 public final class EditorTheme {
 	private static final String RSTA_THEME_PATH = "/org/fife/ui/rsyntaxtextarea/themes/";
+	public static final EditorTheme GRAPHITE = new EditorTheme("Jadx Graphite", "/themes/jadx-graphite.xml");
+	public static final EditorTheme LIGHT = new EditorTheme("Jadx Light", "/themes/jadx-light.xml");
 
 	private static final EditorTheme[] ALL_THEMES =
 			new EditorTheme[] {
+					GRAPHITE,
+					LIGHT,
 					new EditorTheme("default"),
 					new EditorTheme("eclipse"),
 					new EditorTheme("idea"),

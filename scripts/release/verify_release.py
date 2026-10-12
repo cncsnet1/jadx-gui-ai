@@ -70,11 +70,20 @@ def verify(directory):
             platform = asset["platform"]
             info = json.loads(reader.read(f"{root}/BUILD-INFO.json"))
             assert info["version"] == manifest["version"] and info["platform"] == platform
-            for name in ("README.md", "LICENSE", "NOTICE", "START-HERE.txt", "docs/images/readme-hero.svg"):
+            for name in ("README.md", "LICENSE", "NOTICE", "START-HERE.txt", "docs/images/readme-hero.svg",
+                         "docs/JAVA_DEOBFUSCATION.md", "docs/images/workspace-home-graphite.png",
+                         "docs/images/workbench-graphite.png"):
                 assert f"{root}/{name}" in reader.names, (platform, name)
             jars = [name for name in reader.names if name.endswith("-all.jar")]
             assert len(jars) == 1, platform
             payload = reader.read(jars[0])
+            with zipfile.ZipFile(io.BytesIO(payload)) as application:
+                for required in ("jadx/gui/ui/workspace/WorkspaceChrome.class",
+                                 "jadx/gui/ai/AiClassSearch.class",
+                                 "jadx/plugins/deobf/JavaDeobfPlugin.class",
+                                 "themes/jadx-graphite.xml"):
+                    assert required in application.namelist(), (platform, required)
+                assert b"jadx.plugins.deobf.JavaDeobfPlugin" in application.read("META-INF/services/jadx.api.plugins.JadxPlugin")
             current = hashlib.sha256(payload).hexdigest()
             assert current == info["jar_sha256"] and (jar_hash is None or current == jar_hash)
             jar_hash = current

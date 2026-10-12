@@ -150,10 +150,10 @@ exit /b %ERRORLEVEL%
 
 def add_docs(archive, prefix, version, platform, runtime):
     files = [ROOT / name for name in ("README.md", "LICENSE", "NOTICE", "CONTRIBUTING.md")]
-    files += [ROOT / "docs/AI_WORKBENCH.md", ROOT / "docs/RELEASING.md"]
+    files += [ROOT / "docs/AI_WORKBENCH.md", ROOT / "docs/JAVA_DEOBFUSCATION.md", ROOT / "docs/RELEASING.md"]
     files += sorted((ROOT / "docs/releases").glob("*.md"))
     files += [ROOT / "docs/examples/TokenStore.java"]
-    files += sorted((ROOT / "docs/images").glob("ai-*.png"))
+    files += sorted((ROOT / "docs/images").glob("*.png"))
     files += [ROOT / "docs/images/readme-hero.svg"]
     for path in files:
         archive.file(f"{prefix}/{path.relative_to(ROOT).as_posix()}", path)
@@ -166,7 +166,7 @@ def add_docs(archive, prefix, version, platform, runtime):
         "portable": "Java 17+ required. GUI: bin/jadx-gui-ai (.bat on Windows). CLI: bin/jadx (.bat on Windows).",
     }[platform]
     archive.text(f"{prefix}/START-HERE.txt", f"JADX GUI AI {version}\nPlatform: {platform}\n\n{start}\n\n"
-                 "首次打开 Java 类后，从工具栏进入 AI 工作台，再配置自己的模型服务。\n"
+                 "打开文件后，点击左侧助手或顶部 AI 搜索；从 AI 设置配置自己的模型服务。\n"
                  "此包不包含模型、账号、密钥或分析记录。\n\n"
                  "macOS: the app is unsigned and not notarized. Follow the operating system's Open / Privacy & Security prompt.\n"
                  "Linux: a graphical desktop and glibc-based distribution are required; this is not an Alpine/musl build.\n\n"

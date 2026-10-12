@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -130,7 +131,7 @@ public final class OpenAiClient implements AiClient {
 				if (data == null) {
 					throw new IOException("AI provider returned no model catalog");
 				}
-				TreeSet<String> ids = new TreeSet<>();
+				Set<String> ids = new TreeSet<>();
 				for (JsonElement item : data) {
 					JsonElement id = item.getAsJsonObject().get("id");
 					if (id != null && id.isJsonPrimitive() && id.getAsJsonPrimitive().isString() && !id.getAsString().isBlank()) {

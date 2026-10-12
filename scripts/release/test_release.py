@@ -1,15 +1,36 @@
 import io
 import pathlib
+import re
 import plistlib
 import struct
 import tempfile
 import unittest
 
-from build_release import Archive, add_runtime, safe_name, shell_launcher, windows_launcher
+from build_release import Archive, add_docs, add_runtime, safe_name, shell_launcher, windows_launcher
 from verify_release import Reader, binary_arch
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_packaged_readme_local_links_and_new_guides_exist(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = pathlib.Path(temp) / "docs.zip"
+            archive = Archive(path, 1700000000)
+            add_docs(archive, "app", "2.0.0-beta.2", "portable", {})
+            archive.close()
+            reader = Reader(path)
+            try:
+                readme = reader.read("app/README.md").decode("utf-8")
+                links = re.findall(r'\]\(([^)]+)\)|src="([^"]+)"', readme)
+                for markdown, html in links:
+                    link = markdown or html
+                    if "://" not in link and not link.startswith("#"):
+                        self.assertIn("app/" + link.split("#")[0], reader.names)
+                self.assertIn("app/docs/JAVA_DEOBFUSCATION.md", reader.names)
+                self.assertIn("app/docs/images/workspace-home-graphite.png", reader.names)
+                self.assertIn("app/docs/images/workbench-graphite.png", reader.names)
+            finally:
+                reader.close()
+
     def test_unsafe_archive_paths_are_rejected(self):
         for path in ("../escape", "/absolute", "a/../../escape", "C:/windows", "a\\b"):
             with self.assertRaises(ValueError):
