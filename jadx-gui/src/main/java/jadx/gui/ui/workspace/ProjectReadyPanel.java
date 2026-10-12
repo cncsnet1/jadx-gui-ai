@@ -42,9 +42,9 @@ public final class ProjectReadyPanel extends JPanel {
 		card.add(hint, BorderLayout.CENTER);
 		JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
 		actions.setOpaque(false);
-		JButton browse = new JButton(AiText.str("studio_browse_files"));
+		JButton browse = new JButton(AiText.str("analysis.title"));
 		WorkbenchUi.primary(browse);
-		browse.addActionListener(e -> window.focusWorkspaceExplorer());
+		browse.addActionListener(e -> window.showProjectAnalysis());
 		actions.add(browse);
 		actions.add(javax.swing.Box.createHorizontalStrut(8));
 		search = new JButton(AiText.str("studio_search_classes"));

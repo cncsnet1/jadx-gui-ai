@@ -68,6 +68,9 @@ public final class AiContext {
 
 	/** Resolve serialized raw names/short IDs, which are different from live code metadata refs. */
 	public static JavaNode resolve(JadxDecompiler decompiler, JadxNodeRef ref) {
+		if (ref == null) {
+			return null; // Resource evidence has no Java symbol.
+		}
 		ClassNode cls = decompiler.getRoot().resolveClass(ref.getDeclaringClass());
 		if (cls == null) {
 			return null;

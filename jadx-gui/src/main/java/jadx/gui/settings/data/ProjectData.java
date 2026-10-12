@@ -12,6 +12,7 @@ import org.jetbrains.annotations.Nullable;
 
 import jadx.api.data.impl.JadxCodeData;
 import jadx.gui.ai.AiRecord;
+import jadx.gui.ai.analysis.AnalysisReport;
 
 public class ProjectData {
 	private int projectVersion = 2;
@@ -24,10 +25,19 @@ public class ProjectData {
 	private boolean enableLiveReload = false;
 	private List<String> searchHistory = new ArrayList<>();
 	private List<AiRecord> aiRecords = new ArrayList<>();
+	private AnalysisReport analysisReport;
 	protected Map<String, String> pluginOptions = new HashMap<>();
 
 	public List<Path> getFiles() {
 		return files;
+	}
+
+	public AnalysisReport getAnalysisReport() {
+		return analysisReport;
+	}
+
+	public void setAnalysisReport(AnalysisReport report) {
+		analysisReport = report;
 	}
 
 	public List<AiRecord> getAiRecords() {

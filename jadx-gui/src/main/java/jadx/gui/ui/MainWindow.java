@@ -94,8 +94,7 @@ import jadx.core.utils.files.FileUtils;
 import jadx.gui.JadxWrapper;
 import jadx.gui.ai.AiText;
 import jadx.gui.ai.AiWorkbenchPanel;
-import jadx.gui.mcp.McpManager;
-import jadx.gui.mcp.McpText;
+import jadx.gui.ai.analysis.AnalysisPanel;
 import jadx.gui.cache.manager.CacheManager;
 import jadx.gui.device.debugger.BreakpointManager;
 import jadx.gui.events.services.RenameService;
@@ -109,6 +108,8 @@ import jadx.gui.jobs.TaskWithExtraOnFinish;
 import jadx.gui.logs.LogCollector;
 import jadx.gui.logs.LogOptions;
 import jadx.gui.logs.LogPanel;
+import jadx.gui.mcp.McpManager;
+import jadx.gui.mcp.McpText;
 import jadx.gui.plugins.context.CommonGuiPluginsContext;
 import jadx.gui.plugins.context.TreePopupMenuEntry;
 import jadx.gui.plugins.mappings.RenameMappingsGui;
@@ -135,10 +136,10 @@ import jadx.gui.ui.dialog.ADBDialog;
 import jadx.gui.ui.dialog.AboutDialog;
 import jadx.gui.ui.dialog.AiSearchDialog;
 import jadx.gui.ui.dialog.AiSettingDialog;
-import jadx.gui.ui.dialog.McpDialog;
 import jadx.gui.ui.dialog.ExceptionDialog;
 import jadx.gui.ui.dialog.ExportProjectDialog;
 import jadx.gui.ui.dialog.LogViewerDialog;
+import jadx.gui.ui.dialog.McpDialog;
 import jadx.gui.ui.dialog.SearchDialog;
 import jadx.gui.ui.filedialog.FileDialogWrapper;
 import jadx.gui.ui.filedialog.FileOpenMode;
@@ -221,6 +222,7 @@ public class MainWindow extends JFrame {
 	private WorkspaceChrome workspaceChrome;
 	private JPanel editorContent;
 	private ProjectReadyPanel projectReadyPanel;
+	private AnalysisPanel analysisPanel;
 	private JPanel explorerHeading;
 	private int explorerWidth;
 	private boolean explorerLayoutPending;
@@ -720,7 +722,8 @@ public class MainWindow extends JFrame {
 						runInitialBackgroundJobs();
 						projectReadyPanel.refresh();
 						notifyLoadListeners(true);
-						showWorkspaceExplorer();
+						analysisPanel.refreshProject();
+						showProjectAnalysis();
 						workspaceChrome.showWorkspace();
 						onFinish.run();
 						finishLoading();
@@ -1504,6 +1507,8 @@ public class MainWindow extends JFrame {
 		editorContent.add(tabbedPane, "editors");
 		projectReadyPanel = new ProjectReadyPanel(this);
 		editorContent.add(projectReadyPanel, "ready");
+		analysisPanel = new AnalysisPanel(this);
+		editorContent.add(analysisPanel, "analysis");
 
 		quickTabsAndCodeSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 		quickTabsAndCodeSplitPane.setResizeWeight(0.15);
@@ -1616,6 +1621,7 @@ public class MainWindow extends JFrame {
 	private void updateUiSettings() {
 		LafManager.updateLaf(settings);
 		aiWorkbench.refreshTheme();
+		analysisPanel.refreshTheme();
 
 		setFont(javax.swing.UIManager.getFont("Label.font"));
 		setEditorTheme(settings.getEditorThemePath());
@@ -1650,6 +1656,7 @@ public class MainWindow extends JFrame {
 
 		dispose();
 		aiWorkbench.close();
+		analysisPanel.close();
 		mcpManager.close();
 		if (mcpDialog != null) {
 			mcpDialog.dispose();
@@ -1801,6 +1808,15 @@ public class MainWindow extends JFrame {
 		refreshWorkspaceLayout();
 	}
 
+	public void showProjectAnalysis() {
+		if (!loaded) {
+			showWorkspaceHome();
+			return;
+		}
+		workspaceLayout.showAnalysis();
+		refreshWorkspaceLayout();
+	}
+
 	public void focusWorkspaceExplorer() {
 		showWorkspaceExplorer();
 		tree.requestFocusInWindow();
@@ -1808,7 +1824,8 @@ public class MainWindow extends JFrame {
 
 	private void refreshWorkspaceLayout() {
 		((CardLayout) editorContent.getLayout()).show(editorContent,
-				loaded && !workspaceLayout.isHome() && tabbedPane.getTabCount() == 0 ? "ready" : "editors");
+				loaded && workspaceLayout.isAnalysis() ? "analysis"
+						: loaded && !workspaceLayout.isHome() && tabbedPane.getTabCount() == 0 ? "ready" : "editors");
 		boolean explorerVisible = workspaceLayout.isExplorerVisible();
 		boolean assistantVisible = workspaceLayout.isAssistantVisible();
 		boolean openingExplorer = explorerVisible && !treeSplitPane.getLeftComponent().isVisible();

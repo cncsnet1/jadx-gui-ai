@@ -35,6 +35,7 @@ import jadx.api.plugins.utils.CommonFileUtils;
 import jadx.core.utils.exceptions.JadxRuntimeException;
 import jadx.core.utils.files.FileUtils;
 import jadx.gui.ai.AiRecord;
+import jadx.gui.ai.analysis.AnalysisReport;
 import jadx.gui.cache.manager.CacheManager;
 import jadx.gui.settings.data.ProjectData;
 import jadx.gui.settings.data.TabViewState;
@@ -150,6 +151,15 @@ public class JadxProject {
 
 	public List<AiRecord> getAiRecords() {
 		return Collections.unmodifiableList(data.getAiRecords());
+	}
+
+	public AnalysisReport getAnalysisReport() {
+		return data.getAnalysisReport();
+	}
+
+	public void setAnalysisReport(AnalysisReport report) {
+		data.setAnalysisReport(report);
+		changed();
 	}
 
 	public void addAiRecord(AiRecord record) {

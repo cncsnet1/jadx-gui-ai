@@ -15,7 +15,7 @@ class ReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             path = pathlib.Path(temp) / "docs.zip"
             archive = Archive(path, 1700000000)
-            add_docs(archive, "app", "2.0.0-beta.2", "portable", {})
+            add_docs(archive, "app", "2.0.0-beta.4", "portable", {})
             archive.close()
             reader = Reader(path)
             try:
@@ -26,6 +26,9 @@ class ReleaseTests(unittest.TestCase):
                     if "://" not in link and not link.startswith("#"):
                         self.assertIn("app/" + link.split("#")[0], reader.names)
                 self.assertIn("app/docs/JAVA_DEOBFUSCATION.md", reader.names)
+                self.assertIn("app/docs/API_INVENTORY.md", reader.names)
+                self.assertIn("app/docs/ASSESSMENT_WORKFLOW.md", reader.names)
+                self.assertIn("应用调查", reader.read("app/START-HERE.txt").decode("utf-8"))
                 self.assertIn("app/docs/images/workspace-home-graphite.png", reader.names)
                 self.assertIn("app/docs/images/workbench-graphite.png", reader.names)
             finally:

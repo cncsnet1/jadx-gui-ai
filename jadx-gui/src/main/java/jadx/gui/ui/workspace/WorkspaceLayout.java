@@ -6,6 +6,7 @@ public final class WorkspaceLayout {
 	private boolean focus;
 	private boolean explorer = true;
 	private boolean assistant;
+	private boolean analysis;
 
 	public WorkspaceLayout(boolean assistant) {
 		this.assistant = assistant;
@@ -13,6 +14,16 @@ public final class WorkspaceLayout {
 
 	public void setHome(boolean value) {
 		home = value;
+		analysis = false;
+	}
+
+	public void showAnalysis() {
+		home = false;
+		analysis = true;
+	}
+
+	public boolean isAnalysis() {
+		return analysis;
 	}
 
 	public boolean isHome() {
@@ -20,16 +31,17 @@ public final class WorkspaceLayout {
 	}
 
 	public boolean isFocus() {
-		return focus && !home;
+		return focus && !home && !analysis;
 	}
 
 	public void toggleFocus() {
-		if (!home) {
+		if (!home && !analysis) {
 			focus = !focus;
 		}
 	}
 
 	public void toggleExplorer() {
+		analysis = false;
 		if (home || focus) {
 			home = false;
 			focus = false;
@@ -40,6 +52,7 @@ public final class WorkspaceLayout {
 	}
 
 	public void showExplorer() {
+		analysis = false;
 		home = false;
 		focus = false;
 		explorer = true;
@@ -48,16 +61,17 @@ public final class WorkspaceLayout {
 	public void setAssistant(boolean value) {
 		assistant = value;
 		if (value) {
+			analysis = false;
 			home = false;
 			focus = false;
 		}
 	}
 
 	public boolean isExplorerVisible() {
-		return !home && !focus && explorer;
+		return !home && !analysis && !focus && explorer;
 	}
 
 	public boolean isAssistantVisible() {
-		return !home && !focus && assistant;
+		return !home && !analysis && !focus && assistant;
 	}
 }

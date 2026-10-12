@@ -1,25 +1,25 @@
 # 发布指南
 
-版本：`2.0.0-beta.3`。发布包使用同一份 GUI shadow JAR（包含 CLI），分别附带 Windows x64、macOS x64 / ARM64、Linux x64 / ARM64 的 Eclipse Temurin 21 JRE。
+版本：`2.0.0-beta.4`。发布包使用同一份 GUI shadow JAR（包含 CLI），分别附带 Windows x64、macOS x64 / ARM64、Linux x64 / ARM64 的 Eclipse Temurin 21 JRE。
 
 ## 本地构建
 
 在仓库根目录运行，需要 JDK 17+（流水线使用 JDK 21）、Python 3.11+、curl。Windows 原生启动器由仓库现有 Launch4j 任务生成。
 
 ```powershell
-$env:JADX_VERSION = '2.0.0-beta.3'
+$env:JADX_VERSION = '2.0.0-beta.4'
 .\gradlew.bat -PbundleJRE :jadx-plugins:jadx-java-deobf:test :jadx-plugins:jadx-java-input:test --tests jadx.plugins.input.java.NestedArchiveTest :jadx-gui:test :jadx-gui:shadowJar :jadx-gui:createExe
 python -m unittest discover -s scripts/release -p "test_*.py"
 python scripts/release/build_release.py --version $env:JADX_VERSION
-python scripts/release/verify_release.py build/releases/2.0.0-beta.3
+python scripts/release/verify_release.py build/releases/2.0.0-beta.4
 ```
 
 构建脚本使用 `scripts/release/runtimes.json` 中锁定的官方下载地址、文件大小与 SHA-256；缓存位于 `.gradle/release-runtimes`。不会自动升级运行环境，也不会关闭 TLS 验证。需要更新 Java 时，应先更新锁定文件并重新验证所有平台。
 
-输出位于 `build/releases/2.0.0-beta.3/`，包含六个平台附件、校验和、构建清单与发布说明。`--platform` 可重复指定，以仅构建某些平台，例如：
+输出位于 `build/releases/2.0.0-beta.4/`，包含六个平台附件、校验和、构建清单与发布说明。`--platform` 可重复指定，以仅构建某些平台，例如：
 
 ```bash
-export JADX_VERSION=2.0.0-beta.3
+export JADX_VERSION=2.0.0-beta.4
 ./gradlew :jadx-gui:test :jadx-gui:shadowJar
 python scripts/release/build_release.py --version "$JADX_VERSION" --platform linux-x64 --platform portable
 ```
@@ -47,13 +47,13 @@ GUI 检查至少覆盖：打开演示类或 APK、配置连接、预览上下文
 将源码改动推送到自己的仓库，创建版本标签后，可使用 `.github/workflows/release.yml` 自动完成测试、构建、打包、校验并生成 **草稿 Release**。手动触发工作流只上传 Actions 构建附件。标签必须尚未创建 Release；同一版本的后续构建可手动触发，避免重复创建发布。
 
 ```bash
-git tag v2.0.0-beta.3
-git push origin v2.0.0-beta.3
+git tag v2.0.0-beta.4
+git push origin v2.0.0-beta.4
 ```
 
 这些命令会触发远程流水线，按实际准备情况执行。本地打包不会替你提交、推送、创建标签或发布 GitHub Release。
 
-也可以手动创建 GitHub Release，将 `build/releases/2.0.0-beta.3/` 内全部文件作为附件上传，并把 `RELEASE-NOTES.md` 内容作为发布说明。预发布版本请勾选 Pre-release，确认草稿后再公开。
+也可以手动创建 GitHub Release，将 `build/releases/2.0.0-beta.4/` 内全部文件作为附件上传，并把 `RELEASE-NOTES.md` 内容作为发布说明。预发布版本请勾选 Pre-release，确认草稿后再公开。
 
 ## 发布包说明
 

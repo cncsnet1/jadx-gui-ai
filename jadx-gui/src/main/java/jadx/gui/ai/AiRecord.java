@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import jadx.gui.ai.analysis.OpportunityAnalysis;
+
 public final class AiRecord {
 	private String title;
 	private String answer;
@@ -13,6 +15,7 @@ public final class AiRecord {
 	private String model;
 	private String destination;
 	private List<AiFinding> findings;
+	private OpportunityAnalysis opportunities;
 
 	private AiRecord() {
 		// Required by project JSON deserialization with JDK Unsafe disabled.
@@ -31,7 +34,15 @@ public final class AiRecord {
 	}
 
 	public String getNarrative() {
-		return AiFindings.narrative(answer);
+		return opportunities == null ? AiFindings.narrative(answer) : opportunities.narrative(AiFindings.narrative(answer));
+	}
+
+	public OpportunityAnalysis getOpportunities() {
+		return opportunities;
+	}
+
+	public void setOpportunities(OpportunityAnalysis opportunities) {
+		this.opportunities = opportunities;
 	}
 
 	public List<AiFinding> getFindings() {

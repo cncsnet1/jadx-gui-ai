@@ -53,6 +53,9 @@ public final class AiReport {
 				}
 			}
 		}
+		if (record.getOpportunities() != null) {
+			out.append(record.getOpportunities().markdown());
+		}
 		for (int i = 0; i < record.getEvidence().size(); i++) {
 			AiEvidence source = record.getEvidence().get(i);
 			out.append("## [S").append(i + 1).append("] ").append(source.getTitle()).append("\n\n")
@@ -62,7 +65,7 @@ public final class AiReport {
 			}
 			fenced(out, "java", source.getCode());
 		}
-		if (!record.getFindings().isEmpty()) {
+		if (!record.getFindings().isEmpty() || record.getOpportunities() != null) {
 			out.append("## ").append(AiText.str("raw_response")).append("\n\n");
 			fenced(out, "text", record.getAnswer());
 		}

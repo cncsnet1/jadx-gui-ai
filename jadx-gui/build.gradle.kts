@@ -63,6 +63,10 @@ tasks.test {
 	exclude("**/tmp/*")
 }
 
+tasks.compileTestJava {
+	options.encoding = "UTF-8"
+}
+
 application {
 	applicationName = ("jadx-gui")
 	mainClass.set("jadx.gui.JadxGUI")

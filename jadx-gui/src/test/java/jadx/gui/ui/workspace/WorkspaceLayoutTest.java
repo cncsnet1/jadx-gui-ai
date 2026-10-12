@@ -6,6 +6,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class WorkspaceLayoutTest {
 	@Test
+	void analysisIsAWorkspaceDestinationAndPreservesCodePanelPreferences() {
+		WorkspaceLayout layout = new WorkspaceLayout(true);
+		layout.showAnalysis();
+		assertThat(layout.isHome()).isFalse();
+		assertThat(layout.isAnalysis()).isTrue();
+		assertThat(layout.isExplorerVisible()).isFalse();
+		assertThat(layout.isAssistantVisible()).isFalse();
+		layout.toggleFocus();
+		assertThat(layout.isAnalysis()).isTrue();
+		layout.showExplorer();
+		assertThat(layout.isAnalysis()).isFalse();
+		assertThat(layout.isExplorerVisible()).isTrue();
+		assertThat(layout.isAssistantVisible()).isTrue();
+		layout.showAnalysis();
+		layout.setHome(true);
+		assertThat(layout.isAnalysis()).isFalse();
+	}
+
+	@Test
 	void workspaceNavigationAlwaysRevealsFilesAndKeepsAssistantPreference() {
 		for (boolean assistant : new boolean[] { false, true }) {
 			WorkspaceLayout layout = new WorkspaceLayout(assistant);

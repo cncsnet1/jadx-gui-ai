@@ -64,7 +64,7 @@ public class StartPagePanel extends ContentPanel {
 			current.add(file, BorderLayout.CENTER);
 			JButton resume = new JButton(AiText.str("studio_resume"), new WorkspaceIcon(WorkspaceIcon.Kind.ARROW, 18));
 			WorkbenchUi.primary(resume);
-			resume.addActionListener(e -> window.showWorkspaceExplorer());
+			resume.addActionListener(e -> window.showProjectAnalysis());
 			current.add(resume, BorderLayout.EAST);
 			heading.add(current, BorderLayout.SOUTH);
 		}
@@ -282,7 +282,8 @@ public class StartPagePanel extends ContentPanel {
 			g.setColor(fileDropActive ? WorkbenchUi.tint() : WorkbenchUi.surface());
 			g.fillRoundRect(1, 1, getWidth() - 3, getHeight() - 3, 18, 18);
 			g.setColor(fileDropActive ? WorkbenchUi.accent() : WorkbenchUi.line());
-			g.setStroke(fileDropActive ? new BasicStroke(2f)
+			g.setStroke(fileDropActive
+					? new BasicStroke(2f)
 					: new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1, new float[] { 7, 6 }, 0));
 			g.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, 18, 18);
 			g.dispose();

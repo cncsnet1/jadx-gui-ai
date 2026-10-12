@@ -71,7 +71,8 @@ def verify(directory):
             info = json.loads(reader.read(f"{root}/BUILD-INFO.json"))
             assert info["version"] == manifest["version"] and info["platform"] == platform
             for name in ("README.md", "LICENSE", "NOTICE", "START-HERE.txt", "docs/images/readme-hero.svg",
-                         "docs/JAVA_DEOBFUSCATION.md", "docs/MCP.md", "docs/images/workspace-home-graphite.png",
+                         "docs/JAVA_DEOBFUSCATION.md", "docs/MCP.md", "docs/API_INVENTORY.md",
+                         "docs/ASSESSMENT_WORKFLOW.md", "docs/images/opportunity-graphite.png", "docs/images/workspace-home-graphite.png",
                          "docs/images/workbench-graphite.png"):
                 assert f"{root}/{name}" in reader.names, (platform, name)
             jars = [name for name in reader.names if name.endswith("-all.jar")]
@@ -83,6 +84,11 @@ def verify(directory):
                                  "jadx/gui/ui/workspace/ProjectReadyPanel.class",
                                  "jadx/gui/ui/FileDropSupport.class",
                                  "jadx/gui/ai/AiClassSearch.class",
+                                 "jadx/gui/ai/analysis/ApkAnalysisScanner.class",
+                                 "jadx/gui/ai/analysis/AnalysisPanel.class",
+                                 "jadx/gui/ai/analysis/ApiCatalogPanel.class",
+                                 "jadx/gui/ai/analysis/OpportunityAnalysis.class",
+                                 "jadx/gui/ai/analysis/OpportunityPanel.class",
                                  "jadx/gui/mcp/McpServer.class",
                                  "jadx/gui/mcp/McpClient.class",
                                  "mcp/messages_zh.properties",

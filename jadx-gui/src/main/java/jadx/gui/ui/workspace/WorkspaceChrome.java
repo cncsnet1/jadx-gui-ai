@@ -42,6 +42,7 @@ public final class WorkspaceChrome extends JPanel {
 	private final JLabel mode = WorkbenchUi.mutedLabel("");
 	private final JButton home;
 	private final JButton explorer;
+	private final JButton analysis;
 	private final JButton assistant;
 	private final JButton focus;
 	private final CardLayout contentLayout = new CardLayout();
@@ -82,8 +83,8 @@ public final class WorkspaceChrome extends JPanel {
 		focus = new JButton(AiText.str("studio_focus"), new WorkspaceIcon(FOCUS, 16));
 		focus.addActionListener(e -> window.toggleWorkspaceFocus());
 		actions.add(focus);
-		JButton ai = new JButton(searchAction);
-		ai.setText(AiText.str("search_title"));
+		JButton ai = new JButton(AiText.str("analysis.title"));
+		ai.addActionListener(e -> window.showProjectAnalysis());
 		ai.setIcon(new WorkspaceIcon(AI, 17));
 		WorkbenchUi.primary(ai);
 		actions.add(ai);
@@ -94,10 +95,13 @@ public final class WorkspaceChrome extends JPanel {
 		rail.setLayout(new BoxLayout(rail, BoxLayout.PAGE_AXIS));
 		rail.setBorder(BorderFactory.createEmptyBorder(6, 10, 12, 10));
 		home = railButton("studio_home", HOME, window::showWorkspaceHome);
+		analysis = railButton("analysis.nav", AI, window::showProjectAnalysis);
 		explorer = railButton("studio_files", FILES, window::showWorkspaceExplorer);
 		assistant = railButton("studio_assistant", AI,
 				() -> window.setAiWorkbenchVisible(!window.getAiWorkbench().isVisible()));
 		rail.add(home);
+		rail.add(Box.createVerticalStrut(8));
+		rail.add(analysis);
 		rail.add(Box.createVerticalStrut(8));
 		rail.add(explorer);
 		rail.add(Box.createVerticalStrut(8));
@@ -178,10 +182,12 @@ public final class WorkspaceChrome extends JPanel {
 		mcpStatus.setText(sharing ? McpText.str("sharing_badge") : "MCP · " + connections);
 		WorkspaceLayout layout = window.getWorkspaceLayout();
 		home.setSelected(layout.isHome());
-		explorer.setSelected(window.isProjectLoaded() && !layout.isHome());
+		analysis.setSelected(layout.isAnalysis());
+		analysis.setEnabled(window.isProjectLoaded());
+		explorer.setSelected(window.isProjectLoaded() && !layout.isHome() && !layout.isAnalysis());
 		explorer.setEnabled(window.isProjectLoaded());
 		assistant.setSelected(layout.isAssistantVisible());
-		focus.setEnabled(!layout.isHome());
+		focus.setEnabled(!layout.isHome() && !layout.isAnalysis());
 		focus.setText(AiText.str(layout.isFocus() ? "studio_restore" : "studio_focus"));
 		project.setText(window.getProject().isInitial() ? AiText.str("studio_workspace") : window.getProject().getName());
 		project.setToolTipText(project.getText());
@@ -189,6 +195,9 @@ public final class WorkspaceChrome extends JPanel {
 		String path = selected == null || selected.getNode() == null || selected.getNode() instanceof StartPageNode
 				? AiText.str(window.isProjectLoaded() ? "studio_project_ready_hint" : "studio_ready")
 				: selected.getNode().makeLongString();
+		if (layout.isAnalysis()) {
+			path = AiText.str("analysis.workspace_hint");
+		}
 		location.setText("    /    " + path);
 		location.setToolTipText(path);
 		mode.setText("●  " + AiText.str(layout.isFocus() ? "studio_focus_mode" : "studio_local"));

@@ -3,12 +3,12 @@
 </p>
 
 <p align="center">
-  <strong>把反编译、AI 分析和证据复核，放进同一个工作空间。</strong><br>
-  A source-first reverse engineering workbench, with AI you can inspect.
+  <strong>打开应用，告诉 AI 你想了解什么，让每条结论都有据可查。</strong><br>
+  Goal-driven app analysis, with evidence you can inspect.
 </p>
 
 <p align="center">
-  <a href="https://github.com/cncsnet1/jadx-gui-ai/releases"><img src="https://img.shields.io/badge/preview-v2.0.0--beta.3-38b2ac?style=flat-square" alt="v2.0.0-beta.3"></a>
+  <a href="https://github.com/cncsnet1/jadx-gui-ai/releases"><img src="https://img.shields.io/badge/preview-v2.0.0--beta.4-38b2ac?style=flat-square" alt="v2.0.0-beta.4"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-64748b?style=flat-square" alt="Apache-2.0"></a>
   <img src="https://img.shields.io/badge/desktop-Windows%20%7C%20macOS%20%7C%20Linux-6085cc?style=flat-square" alt="Windows, macOS, Linux">
   <img src="https://img.shields.io/badge/AI-cloud%20%2B%20local-8b72cf?style=flat-square" alt="Cloud and local models">
@@ -24,25 +24,53 @@
 
 ---
 
-你找到一个可疑方法，接下来通常还要追调用、补上下文、判断模型有没有看错，再把有用的结论记下来。
+不懂逆向、不知道该搜哪个类，也可以先从“这个应用里有什么”“登录怎么实现”“有哪些接口和敏感信息线索”开始。
 
-**JADX GUI AI 把这条分析路径接进了 JADX。** 光标所在的方法就是起点，发送的上下文可以预览，回答中的引用可以回到源码，重要线索可以逐条复核、随项目保存。云端与本地模型可以并存，也可以按解释、追踪、审计、命名分别分配。
+**v2.0.0-beta.4 新增面向渗透路径探索的应用调查工作区**：先梳理 API、入口和有用材料，再由 AI 读取相关代码、比较值得先尝试的入口，解释已有依据与待追踪环节。可以导出线索包，到其他工具继续调查；需要评估问题时再记录人工核查。未连接模型也能使用本地发现、API 清单与路线指南。原有源码助手、AI 搜索、人工复核与 MCP 继续保留。
+
+> 下载 **v2.0.0-beta.4** 即可使用这套流程。本地发现无需配置模型；AI 深入调查使用你配置的连接。分析基于有限静态证据，不代表已确认漏洞或攻击成功率。
 
 <table>
   <tr>
-    <td width="33%" valign="top"><b>01 / 从源码出发</b><br><br>方法、选区、调用者。只把明确选定的上下文交给模型。</td>
-    <td width="33%" valign="top"><b>02 / 让依据可见</b><br><br>看清发送内容，追溯引用片段，区分观察、假设和问题。</td>
-    <td width="33%" valign="top"><b>03 / 留下判断过程</b><br><br>记录人工复核与反证，把一次回答变成可以回看的调查记录。</td>
+    <td width="33%" valign="top"><b>01 / 找到起点</b><br><br>默认寻找渗透路径，整理 API、应用入口、身份流程和有用材料。</td>
+    <td width="33%" valign="top"><b>02 / 自动追查</b><br><br>AI 选择已有线索，读取关联方法与调用者，解释依据和未知条件。</td>
+    <td width="33%" valign="top"><b>03 / 继续调查</b><br><br>导出线索包带到下一工具，或切换核查视图记录验证结果。</td>
   </tr>
 </table>
 
 ## 看见完整工作流
 
+### 从调查路径开始
+
+加载后默认选择“寻找渗透路径”。扫描完成后收起设置，展示敏感材料、API 声明、观察到的主机和入口线索；下方按调查方向组织起点。选中一条，即可查看建议追踪顺序、已有证据、未知条件与下一阶段材料。可以只找方向，无需先评级或提交漏洞结论。
+
+![找路径：调查起点、建议路线与下一阶段材料](docs/images/exploration-graphite.png)
+
+[查看浅色主题](docs/images/exploration-light.png)。以上为应用实际 Swing 组件的渲染快照，使用演示代码与本机模拟模型连接。路线指南表示搜索顺序，尚不是已还原的调用链或可利用攻击链；“做核查”保留独立的人工验证记录。完整流程见[应用调查说明](docs/ASSESSMENT_WORKFLOW.md)。
+
+### 先从哪里入手
+
+点击 **“AI 筛选优先入口”**，把已读线索整理成“优先尝试 / 先补证据 / 条件较多”卡片。每张卡说明进入条件、验证成本、已有防护、可能影响、排序理由和下一步，并能跳回引用源码。纯地址、抽象声明、未知条件或截断代码不会被直接推荐为优先尝试；排序是 AI 对本轮证据的推断，不代表攻击成功率。
+
+![优先尝试：条件、依据与下一步](docs/images/opportunity-graphite.png)
+
+[浅色主题](docs/images/opportunity-light.png)。上述演示使用本机模拟模型验证交互，真实推理质量取决于连接的模型和提供的代码范围。
+
+### 自动梳理 API
+
+“API 清单”把 **接口声明、地址线索、请求构造入口** 分开呈现，可搜索域名、路径、请求方法、参数和源码位置。Retrofit 声明可提取 Path / Query / Header / Body、表单与上传字段；OkHttp 和 HttpURLConnection 提供待追踪的构造入口。支持源码跳转、AI 继续追踪、随项目保存及脱敏 JSON / Markdown 导出。
+
+相对路径尚未关联基础地址时会明确标记；未发现认证头也不会判定为匿名接口。完整覆盖范围及后续安全检查设计见 [API 清单说明](docs/API_INVENTORY.md)。
+
+![API 清单：声明、参数、认证线索和来源](docs/images/api-inventory-graphite.png)
+
+[查看浅色界面](docs/images/api-inventory-light.png)。截图由实际应用渲染，数据来自专门编译的演示接口；AI 交互使用本机模拟服务。
+
 ### 一个重新组织的分析空间
 
 左侧导航连接开始页、工作区和代码助手；顶部 `Ctrl / ⌘ + K` 命令面板可以快速找到菜单功能。专注模式临时收起两侧面板，再次点击即可恢复布局。开始页、编辑器和 AI 侧栏使用统一的石墨灰与青绿色风格，同时提供浅色主题。
 
-“开始”页以文件导入为主要入口：整页支持拖入文件，也可以点击“选择文件”或“打开项目”。加载成功后自动进入“工作区”，展开文件树并显示“文件已就绪”；返回开始页时，可以一键回到正在阅读的源码。“工作区”始终用于进入文件浏览，不会因重复点击而隐藏文件树。
+“开始”页支持整页拖入文件。加载成功后默认进入 **应用调查**，可一键开始调查；左侧 **源码** 随时进入文件树和编辑器。打开文件本身不会调用模型，执行分析前可以关闭“自动用 AI 深入分析”，仅在本机收集线索。以下旧版截图展示 beta.3 的文件入口；新流程说明见[使用手册](docs/AI_WORKBENCH.md#面向目标的自动分析)。
 
 ![全新工作空间首页](docs/images/workspace-home-graphite.png)
 
@@ -95,30 +123,32 @@
 
 ## 下载与启动
 
-> **新增：双向 MCP。** 外部 AI 可以查询当前 JADX 项目的类、源码与引用；内置 AI 也可以连接 stdio / HTTP MCP 工具，逐次确认调用。入口为「工具 → MCP 连接中心」，详见 [MCP 使用说明](docs/MCP.md)。
+> **同时提供双向 MCP。** 外部 AI 可以查询当前 JADX 项目的类、源码与引用；内置 AI 也可以连接 stdio / HTTP MCP 工具，逐次确认调用。入口为「工具 → MCP 连接中心」，详见 [MCP 使用说明](docs/MCP.md)。
 
-前往 [GitHub Releases](https://github.com/cncsnet1/jadx-gui-ai/releases) 下载 **v2.0.0-beta.3** 对应的平台包。前五种包均内置 **Eclipse Temurin 21**，无需另装 Java；AI 模型需自行连接。
+前往 [GitHub Releases](https://github.com/cncsnet1/jadx-gui-ai/releases) 下载 **v2.0.0-beta.4** 对应的平台包。前五种包均内置 **Eclipse Temurin 21**，无需另装 Java；AI 模型需自行连接。
 
 | 你的环境 | 发布包 | 启动入口 |
 | --- | --- | --- |
-| Windows x64 | `jadx-gui-ai-2.0.0-beta.3-windows-x64.zip` | 解压后双击 `jadx-gui-ai.exe` |
-| macOS · Apple Silicon | `jadx-gui-ai-2.0.0-beta.3-macos-arm64.zip` | 解压后打开 `JADX GUI AI.app` |
-| macOS · Intel | `jadx-gui-ai-2.0.0-beta.3-macos-x64.zip` | 解压后打开 `JADX GUI AI.app` |
-| Linux x64 | `jadx-gui-ai-2.0.0-beta.3-linux-x64.tar.gz` | `./bin/jadx-gui-ai` |
-| Linux ARM64 | `jadx-gui-ai-2.0.0-beta.3-linux-arm64.tar.gz` | `./bin/jadx-gui-ai` |
-| 自备 Java · 通用包 | `jadx-gui-ai-2.0.0-beta.3-portable.zip` | `bin/jadx-gui-ai` 或 `bin\jadx-gui-ai.bat` |
+| Windows x64 | `jadx-gui-ai-2.0.0-beta.4-windows-x64.zip` | 解压后双击 `jadx-gui-ai.exe` |
+| macOS · Apple Silicon | `jadx-gui-ai-2.0.0-beta.4-macos-arm64.zip` | 解压后打开 `JADX GUI AI.app` |
+| macOS · Intel | `jadx-gui-ai-2.0.0-beta.4-macos-x64.zip` | 解压后打开 `JADX GUI AI.app` |
+| Linux x64 | `jadx-gui-ai-2.0.0-beta.4-linux-x64.tar.gz` | `./bin/jadx-gui-ai` |
+| Linux ARM64 | `jadx-gui-ai-2.0.0-beta.4-linux-arm64.tar.gz` | `./bin/jadx-gui-ai` |
+| 自备 Java · 通用包 | `jadx-gui-ai-2.0.0-beta.4-portable.zip` | `bin/jadx-gui-ai` 或 `bin\jadx-gui-ai.bat` |
 
-通用包使用 64 位 Java 17+，推荐 Java 21。Linux 桌面包面向 glibc 环境，需要图形桌面；macOS 包尚未签名、公证，首次打开请按系统提示操作。各平台的实际验证范围见 [发布说明](docs/releases/v2.0.0-beta.3.md)。
+通用包使用 64 位 Java 17+，推荐 Java 21。Linux 桌面包面向 glibc 环境，需要图形桌面；macOS 包尚未签名、公证，首次打开请按系统提示操作。各平台的实际验证范围见 [发布说明](docs/releases/v2.0.0-beta.4.md)。
 
 包内同时保留 JADX CLI：`bin/jadx`，Windows 使用 `bin\jadx.bat`。发布附件提供 `SHA256SUMS.txt` 和 `release-manifest.json`，用于核对下载内容与内置运行环境。
 
 ## 三分钟开始第一次分析
 
-1. **打开文件**：拖入 APK、DEX、JAR 或 CLASS，或点击“选择文件”。加载后自动进入工作区，展开左侧文件树并双击类或资源；浏览源码无需先配置 AI。
-2. **连接模型**：打开“AI 工作台 → AI 设置”，填写兼容 Chat Completions 的服务地址、模型 ID 和认证信息。点击“测试模型响应”，成功后保存。
-3. **选定上下文**：把光标放在方法中，或直接选中代码；按需补充最多 3 个调用者。首次使用可先点“上下文”检查消息。
-4. **提出问题**：选择解释、追踪、审计或命名，也可以输入具体问题，例如“这个参数从哪里进入，现有代码还缺哪些证据？”
-5. **复核与保存**：沿 `[S1]` 等引用返回源码，打开调查台记录判断，再保存 `.jadx` 项目或导出报告。
+以下流程随 v2.0.0-beta.4 发布；建议将新包完整解压到独立目录后启动。
+
+1. **打开文件**：拖入 APK、DEX、JAR 或 CLASS，加载后进入应用调查。
+2. **选择目标**：默认“寻找渗透路径”，也可选择“寻找敏感信息”“整理接口和请求”“核查潜在问题”等目标、补充具体问题，然后点“帮我分析这个应用”。
+3. **先看本地发现**：无需模型即可查看疑似敏感常量、地址、接口声明、配置与行为线索；结果按类别整理并保留证据位置。
+4. **让 AI 深入**：配置一次兼容 Chat Completions 的连接，之后可以自动挑选线索、读取定义和调用者；“AI 筛选优先入口”按条件、防护与成本整理值得先尝试的候选。项目分析复用“审计”任务连接；请求失败不会改用其他服务。
+5. **继续追踪与保存**：选中线索让 AI 追查，沿引用核对代码；导出线索包，到抓包、设备或后端测试环境继续调查。也可切换“做核查”记录结果，保存 `.jadx` 项目或导出报告。
 
 <details>
 <summary><b>连接信息应该怎么填？</b></summary>
@@ -140,6 +170,7 @@
 | 已实现 | 具体行为 |
 | --- | --- |
 | 工作台布局 | 首页、侧边导航、命令面板、可恢复的专注模式，深浅主题与紧凑侧栏 |
+| 目标分析 | 本地字节码/资源扫描、去重与分类；AI 选择最多 6 条线索，自动读取定义和调用者；可停止、复用同文件扫描、保存和导出 |
 | AI 搜索 | 按类名语义发现入口；包 / 当前类范围、批次进度、匹配说明、取消与本地筛选 |
 | 源码上下文 | 当前方法、选区或类；主源码最多 12,000 字符，最多 3 个调用者各 3,000 字符，截断可见 |
 | 多连接与任务分配 | 独立保存服务与模型，支持临时切换、环境变量密钥、响应诊断 |
