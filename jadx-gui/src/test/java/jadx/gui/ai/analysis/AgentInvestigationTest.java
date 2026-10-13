@@ -52,7 +52,7 @@ class AgentInvestigationTest {
 							List.of(), false, Set.of(lead.getId()));
 			AtomicInteger turns = new AtomicInteger();
 			NativeClient client = new NativeClient(messages -> {
-				assertThat(messages.toString()).doesNotContain("private-raw-value");
+				assertThat(messages.toString()).contains("private-raw-value");
 				if (turns.getAndIncrement() == 0) {
 					return reply(tool("p1", "update_plan", plan("active", List.of())),
 							tool("r1", "read_evidence", Map.of("target", evidence)));
@@ -82,8 +82,10 @@ class AgentInvestigationTest {
 			assertThat(report.markdown()).contains(jadx.gui.ai.AiText.str("agent.answer_previous"));
 			var gson = jadx.core.utils.GsonUtils.defaultGsonBuilder().create();
 			InvestigationRun restored = gson.fromJson(gson.toJson(run), InvestigationRun.class);
+			assertThat(restored.getEvidence().get(evidence).getSource().getCode())
+					.isEqualTo("password=\"private-raw-value\";\nretainedMarker");
 			NativeClient resume = new NativeClient(messages -> {
-				assertThat(messages.toString()).contains("Trace session reuse next", "retainedMarker");
+				assertThat(messages.toString()).contains("Trace session reuse next", "retainedMarker", "private-raw-value");
 				return reply(tool("f3", "finish_investigation", Map.of("questions", List.of("Need runtime session evidence"))));
 			});
 			var continued = new InvestigationService(decompiler, resume).investigate(report, AnalysisGoal.NETWORK, "ignored", null,
@@ -174,17 +176,18 @@ class AgentInvestigationTest {
 	}
 
 	@Test
-	void oldRecordsGetEmptyAgentStateAndFollowUpsAreBoundedAndRedacted() {
+	void oldRecordsGetEmptyAgentStateAndFollowUpsArePreservedWithinBounds() {
 		var run = new Gson().fromJson("{\"question\":\"old\",\"goal\":\"LOGIN\"}", InvestigationRun.class);
 		assertThat(run.getTasks()).isEmpty();
 		assertThat(run.getFollowUps()).isEmpty();
 		run.begin("password=\"private-value\"");
-		assertThat(run.getFollowUps().toString()).doesNotContain("private-value");
+		assertThat(run.getFollowUps()).containsExactly("password=\"private-value\"");
+		assertThatThrownBy(() -> run.begin("x".repeat(2001))).isInstanceOf(IllegalArgumentException.class);
 		for (int i = 0; i < 11; i++) {
 			run.begin("next " + i);
 		}
 		assertThatThrownBy(() -> run.begin("one more")).isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() -> run.begin("x".repeat(2001))).isInstanceOf(IllegalArgumentException.class);
+		assertThat(run.getFollowUps()).hasSize(12);
 	}
 
 	private static Map<String, Object> plan(String status, List<String> evidence) {
@@ -223,7 +226,9 @@ class AgentInvestigationTest {
 
 		@Override
 		public JsonObject completeWithTools(String model, JsonArray messages, JsonArray tools, int maxTokens, AiCancellation token) {
-			assertThat(tools).hasSize(8);
+			assertThat(tools).hasSize(9);
+			assertThat(tools).anyMatch(tool -> tool.getAsJsonObject().getAsJsonObject("function")
+					.get("name").getAsString().equals("read_resource"));
 			return respond.apply(messages);
 		}
 

@@ -60,9 +60,13 @@ class InvestigationServiceTest {
 			assertThat(run.getEvidence().entries()).anyMatch(e -> e.getOperation().equals("trace_calls"));
 			assertThat(run.getAnswer()).isNotNull();
 			assertThat(calls).hasValue(3);
-			assertThat(requests.toString()).doesNotContain("fixture-local-secret", "private-query-token", "SAMPLE_PRIVATE_PASSWORD_42");
+			assertThat(requests.toString()).contains("fixture-local-secret", "private-query-token");
 			var gson = defaultGsonBuilder().create();
-			InvestigationRun saved = gson.fromJson(gson.toJson(run), InvestigationRun.class);
+			String json = gson.toJson(run);
+			assertThat(json).contains("fixture-local-secret", "private-query-token");
+			InvestigationRun saved = gson.fromJson(json, InvestigationRun.class);
+			assertThat(saved.getEvidence().entries()).anyMatch(e -> e.getSource().getCode().contains("fixture-local-secret")
+					&& e.getSource().getCode().contains("private-query-token"));
 			int initial = saved.getSteps().size();
 			AiClient repeat = (model, messages, temperature, tokens, token, output) -> messages.get(0).get("content").contains("You plan")
 					? "{\"calls\":[{\"operation\":\"trace_calls\",\"target\":\"N1\"}],\"questions\":[]}"

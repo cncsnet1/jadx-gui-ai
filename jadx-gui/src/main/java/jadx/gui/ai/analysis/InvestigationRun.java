@@ -79,7 +79,7 @@ public final class InvestigationRun {
 					|| evidence.size() > 8 || (status.equals("done") && evidence.isEmpty())) {
 				throw new IllegalArgumentException("Invalid task or completion without evidence");
 			}
-			this.title = AnalysisRedactor.redact(title);
+			this.title = title;
 			this.status = status;
 			this.evidence = List.copyOf(evidence);
 		}
@@ -106,12 +106,17 @@ public final class InvestigationRun {
 	private String reason = "";
 	private EvidenceStore evidence;
 	private List<String> selected = new ArrayList<>();
+	// Absent in older saved runs: history remains readable, but cannot safely reuse positional F/A/K
+	// identifiers.
+	private Map<String, String> selectedIdentities;
 	private Map<String, Set<String>> ownership = new LinkedHashMap<>();
 	private Map<String, JadxNodeRef> nodes = new LinkedHashMap<>();
 	private Map<String, Set<String>> nodeOwners = new LinkedHashMap<>();
 	private List<Step> steps = new ArrayList<>();
 	private List<String> questions = new ArrayList<>();
 	private Set<String> completedCalls = new LinkedHashSet<>();
+	// Resource names only: restoring a search must not consume evidence slots or imply a source read.
+	private List<String> resourceTitles = new ArrayList<>();
 	private AiRecord answer;
 	private int answeredSteps;
 	private int answeredFollowUps;
@@ -129,7 +134,7 @@ public final class InvestigationRun {
 	public InvestigationRun(String fingerprint, String profile, AnalysisGoal goal, String question, String focusId) {
 		evidence = new EvidenceStore(fingerprint, profile);
 		this.goal = goal;
-		this.question = AnalysisRedactor.redact(question);
+		this.question = question;
 		this.focusId = focusId;
 	}
 
@@ -186,7 +191,7 @@ public final class InvestigationRun {
 			throw new IllegalArgumentException(AiText.str("agent.followup_limit"));
 		}
 		if (!followUp.isBlank()) {
-			followUps.add(AnalysisRedactor.redact(followUp.trim()));
+			followUps.add(followUp.trim());
 			// A new direction needs a fresh plan; retained observations and prior answer stay available.
 			tasks.clear();
 		}
@@ -212,7 +217,7 @@ public final class InvestigationRun {
 	void progress(int round, int callCount, String current, boolean compat) {
 		rounds = round;
 		calls = callCount;
-		action = AnalysisRedactor.redact(current);
+		action = current;
 		compatibility = compat;
 	}
 
@@ -250,6 +255,26 @@ public final class InvestigationRun {
 		return Collections.unmodifiableMap(copy);
 	}
 
+	List<String> getResourceTitles() {
+		return resourceTitles == null
+				? List.of()
+				: resourceTitles.stream()
+						.filter(title -> title != null && !title.isEmpty() && title.length() <= 768).distinct().limit(384).toList();
+	}
+
+	void rememberResources(List<String> titles) {
+		Set<String> retained = new LinkedHashSet<>(getResourceTitles());
+		for (String title : titles) {
+			if (retained.size() >= 384) {
+				break;
+			}
+			if (title != null && !title.isEmpty() && title.length() <= 768) {
+				retained.add(title);
+			}
+		}
+		resourceTitles = new ArrayList<>(retained);
+	}
+
 	public AiRecord getAnswer() {
 		return answer;
 	}
@@ -270,16 +295,31 @@ public final class InvestigationRun {
 
 	void select(List<AnalysisFinding> findings) {
 		selected = findings.stream().map(AnalysisFinding::getId).collect(java.util.stream.Collectors.toList());
+		selectedIdentities = new LinkedHashMap<>();
+		findings.forEach(finding -> selectedIdentities.put(finding.getId(), finding.reviewKey()));
+	}
+
+	boolean matchesSelectedSources(AnalysisReport report) {
+		if (selectedIdentities == null || selectedIdentities.size() != selected.size()) {
+			return false;
+		}
+		for (String id : selected) {
+			AnalysisFinding current = InvestigationService.find(report, id);
+			if (current == null || !current.reviewKey().equals(selectedIdentities.get(id))) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public void stop(State value, String reason) {
 		state = value;
-		this.reason = AnalysisRedactor.redact(reason);
+		this.reason = reason;
 	}
 
 	void questions(List<String> values) {
 		questions = values.stream().filter(v -> !v.isBlank()).limit(8)
-				.map(v -> AnalysisRedactor.redact(jadx.gui.ai.AiCodeChunks.prefix(v, 500)))
+				.map(v -> jadx.gui.ai.AiCodeChunks.prefix(v, 500))
 				.distinct().collect(java.util.stream.Collectors.toList());
 	}
 
@@ -334,8 +374,8 @@ public final class InvestigationRun {
 		}
 		Step step = new Step();
 		step.operation = operation;
-		step.target = AnalysisRedactor.redact(target);
-		step.summary = AnalysisRedactor.redact(summary);
+		step.target = target;
+		step.summary = summary;
 		step.evidence = List.copyOf(ids);
 		step.createdAt = System.currentTimeMillis();
 		steps.add(step);
@@ -355,12 +395,14 @@ public final class InvestigationRun {
 		copy.reason = reason;
 		copy.evidence = evidence.snapshot();
 		copy.selected = new ArrayList<>(selected);
+		copy.selectedIdentities = selectedIdentities == null ? null : new LinkedHashMap<>(selectedIdentities);
 		copy.nodes = new LinkedHashMap<>(getNodes());
 		copy.nodeOwners = copySets(nodeOwners);
 		copy.ownership = copySets(ownership);
 		copy.steps = new ArrayList<>(steps);
 		copy.questions = new ArrayList<>(questions);
 		copy.completedCalls = new LinkedHashSet<>(completedCalls);
+		copy.resourceTitles = new ArrayList<>(getResourceTitles());
 		copy.answer = answer;
 		copy.answeredSteps = answeredSteps;
 		copy.answeredFollowUps = answeredFollowUps;

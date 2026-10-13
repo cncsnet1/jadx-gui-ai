@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class InvestigationRunTest {
 	@Test
-	void evidenceIdentityIsScopedRedactedAndImmutableAcrossSnapshots() {
+	void evidenceIdentityIsScopedAndOriginalContentIsImmutableAcrossSnapshots() {
 		AiEvidence source = new AiEvidence(null, "config", "password=\"fixture-password\"", "hash", false);
 		EvidenceStore store = new EvidenceStore("apk-1", "profile-1");
 		String id = store.retain("initial", source, List.of(), false);
@@ -23,7 +23,8 @@ class InvestigationRunTest {
 		EvidenceStore snapshot = store.snapshot();
 		store.retain("inspect_symbol", new AiEvidence(null, "next", "code", "", false), List.of(id), true);
 		assertThat(snapshot.entries()).hasSize(1);
-		assertThat(store.get(id).getSource().getCode()).doesNotContain("fixture-password");
+		assertThat(store.get(id).getSource().getCode()).isEqualTo("password=\"fixture-password\"");
+		assertThat(snapshot.get(id).getSource().getCode()).isEqualTo(source.getCode());
 		assertThatThrownBy(() -> store.retain("x", source, List.of("foreign"), false)).isInstanceOf(IllegalArgumentException.class);
 	}
 

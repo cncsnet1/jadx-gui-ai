@@ -55,11 +55,11 @@ import jadx.gui.ui.dialog.AiInvestigationDialog;
 import jadx.gui.ui.dialog.AiSettingDialog;
 import jadx.gui.utils.ui.WorkbenchUi;
 
-/** Goal-first project workspace. All scanning, context loading and transport run off the EDT. */
+/** APK-first workspace. All scanning, context loading and transport run off the EDT. */
 public final class AnalysisPanel extends JPanel {
 	private static final int TAB_ASSESSMENT = 0;
 	private static final int TAB_APIS = 1;
-	private static final int TAB_AI = 2;
+	private static final int TAB_CODE = 2;
 	private final MainWindow window;
 	private final AiTaskRunner runner = new AiTaskRunner();
 	private final JComboBox<AnalysisGoal> goal = new JComboBox<>(AnalysisGoal.values());
@@ -71,7 +71,7 @@ public final class AnalysisPanel extends JPanel {
 	private final JTextArea status = WorkbenchUi.body("");
 	private final JProgressBar progress = new JProgressBar();
 	private final JButton start = button("analysis.start", () -> start(false));
-	private final JButton rescan = button("analysis.rescan", () -> start(true));
+	private final JButton rescan = button("analysis.rescan", () -> start(true, false));
 	private final JButton stop = button("stop", this::cancel);
 	private final JButton settings = button("settings", this::settings);
 	private final JButton explain = button("analysis.explain", () -> analyze(null));
@@ -90,8 +90,12 @@ public final class AnalysisPanel extends JPanel {
 	private final AssessmentPanel assessment;
 	private final OpportunityPanel opportunities;
 	private final ApplicationReportPanel applicationReport;
+	private final KeyCodePanel keyCode;
 	private final InvestigationPanel investigations;
 	private final JPanel reportDeck = new JPanel(new CardLayout());
+	private final JPanel workspaceDeck = new JPanel(new CardLayout());
+	private final JButton history = new JButton();
+	private boolean showingInvestigation;
 	private InvestigationRun activeRun;
 	private JadxProject activeProject;
 	private final JPanel mission = WorkbenchUi.card(16);
@@ -109,6 +113,7 @@ public final class AnalysisPanel extends JPanel {
 		this.window = window;
 		apiCatalog = new ApiCatalogPanel(this::open, endpoint -> {
 			goal.setSelectedItem(AnalysisGoal.NETWORK);
+			question.setText(WorkspaceText.str("request_direction"));
 			analyze(endpoint.asFinding());
 		}, this::inspectApi, window, () -> window.getProject().setAnalysisReport(report));
 		assessment = new AssessmentPanel(this::open, (finding, selectedGoal) -> {
@@ -122,9 +127,7 @@ public final class AnalysisPanel extends JPanel {
 		});
 		applicationReport = new ApplicationReportPanel((finding, selectedGoal) -> {
 			goal.setSelectedItem(selectedGoal);
-			if (finding == null) {
-				question.setText("");
-			}
+			question.setText(finding == null ? "" : KeyCodePanel.investigationDirection(report, finding));
 			analyze(finding);
 		}, finding -> {
 			if (report != null && report.getApis().stream().anyMatch(api -> api.getId().equals(finding.getId()))) {
@@ -135,7 +138,17 @@ public final class AnalysisPanel extends JPanel {
 			filter.setSelectedIndex(0);
 			findings.setSelectedValue(finding, true);
 			showReportPage("evidence");
-		}, () -> showReportPage("all"), () -> results.setSelectedIndex(TAB_APIS), this::settings);
+		}, () -> showReportPage("all"), () -> showWorkspace(TAB_APIS), this::settings,
+				this::open, this::showRecommendedCode);
+		keyCode = new KeyCodePanel((finding, selectedGoal) -> {
+			goal.setSelectedItem(selectedGoal);
+			question.setText(KeyCodePanel.investigationDirection(report, finding));
+			analyze(finding);
+		}, this::open, () -> showReportPage("all"));
+		applicationReport.setRouteNavigation(route -> {
+			keyCode.selectRoute(route);
+			showWorkspace(TAB_CODE);
+		});
 		investigations = new InvestigationPanel(narrative, opportunities, (run, direction) -> analyze(null, run, direction),
 				(selectedGoal, instruction) -> {
 					goal.setSelectedItem(selectedGoal);
@@ -167,8 +180,8 @@ public final class AnalysisPanel extends JPanel {
 					setBusy(false);
 					refreshFindings();
 					assessment.setReviewMode(false);
-					setMissionVisible(true);
-					results.setSelectedIndex(TAB_ASSESSMENT);
+					setMissionVisible(false);
+					showWorkspace(TAB_ASSESSMENT);
 					renderOverview();
 				};
 				if (SwingUtilities.isEventDispatchThread()) {
@@ -185,14 +198,17 @@ public final class AnalysisPanel extends JPanel {
 		JPanel top = WorkbenchUi.transparent();
 		JPanel heading = WorkbenchUi.transparent();
 		JPanel title = WorkbenchUi.transparent();
-		title.add(WorkbenchUi.accentTitle(AiText.str("analysis.title"), 10), BorderLayout.WEST);
+		title.add(WorkbenchUi.accentTitle(WorkspaceText.str("title"), 7), BorderLayout.WEST);
 		title.add(projectName);
 		heading.add(title);
 		JPanel actions = flow();
+		history.setText(WorkspaceText.str("history"));
+		history.addActionListener(e -> showInvestigation());
+		actions.add(history);
 		actions.add(toggleMission);
 		actions.add(button("analysis.browse", window::focusWorkspaceExplorer));
 		actions.add(export);
-		heading.add(actions, BorderLayout.EAST);
+		heading.add(actions, BorderLayout.SOUTH);
 		top.add(heading, BorderLayout.NORTH);
 		mission.add(WorkbenchUi.body(AiText.str("analysis.intro")), BorderLayout.NORTH);
 		JPanel input = WorkbenchUi.transparent();
@@ -238,8 +254,10 @@ public final class AnalysisPanel extends JPanel {
 		reportDeck.setOpaque(false);
 		reportDeck.add(applicationReport, "overview");
 		reportDeck.add(reportPage(assessment, true), "all");
-		results.addTab(AiText.str("report.title"), reportDeck);
-		results.addTab(AiText.str("api.map"), apiCatalog);
+		results.addTab(WorkspaceText.str("overview"), reportDeck);
+		results.addTab(WorkspaceText.str("communication"), apiCatalog);
+		results.addTab(WorkspaceText.str("code"), keyCode);
+		results.putClientProperty("JTabbedPane.tabHeight", 40);
 		JPanel discoveries = WorkbenchUi.transparent();
 		JPanel listPanel = WorkbenchUi.transparent();
 		for (String group : GROUPS) {
@@ -298,15 +316,26 @@ public final class AnalysisPanel extends JPanel {
 		detailPanel.setMinimumSize(new Dimension(220, 150));
 		discoveries.add(split);
 		reportDeck.add(reportPage(discoveries, false), "evidence");
-		results.addTab(AiText.str("investigation.title"), investigations);
 		results.addChangeListener(e -> setBusy(busy));
-		add(results);
+		workspaceDeck.setOpaque(false);
+		workspaceDeck.add(results, "workspace");
+		JPanel investigationPage = WorkbenchUi.transparent();
+		JPanel investigationActions = flow();
+		JButton back = new JButton(WorkspaceText.str("back"));
+		back.addActionListener(e -> showWorkspace(results.getSelectedIndex()));
+		investigationActions.add(back);
+		investigationActions.add(WorkbenchUi.mutedLabel(WorkspaceText.str("investigation_hint")));
+		investigationPage.add(investigationActions, BorderLayout.NORTH);
+		investigationPage.add(investigations);
+		workspaceDeck.add(investigationPage, "investigation");
+		add(workspaceDeck);
 		JPanel footer = flow();
 		footer.add(stop);
 		footer.add(explain);
 		footer.add(review);
 		footer.add(rescan);
 		add(footer, BorderLayout.SOUTH);
+		setMissionVisible(false);
 		setBusy(false);
 		renderOverview();
 	}
@@ -325,12 +354,38 @@ public final class AnalysisPanel extends JPanel {
 
 	private void showReportPage(String page) {
 		((CardLayout) reportDeck.getLayout()).show(reportDeck, page);
-		results.setSelectedIndex(TAB_ASSESSMENT);
+		showWorkspace(TAB_ASSESSMENT);
+	}
+
+	private void showWorkspace(int index) {
+		showingInvestigation = false;
+		((CardLayout) workspaceDeck.getLayout()).show(workspaceDeck, "workspace");
+		results.setSelectedIndex(index);
+		setBusy(busy);
+	}
+
+	private void showRecommendedCode() {
+		if (report != null && !report.getFrameworkAnalysis().getFindings().isEmpty()) {
+			keyCode.selectCategory("framework");
+			showWorkspace(TAB_CODE);
+			return;
+		}
+		String action = report == null ? "" : ApplicationReportPanel.recommendedAction(report.getProfile());
+		keyCode.selectCategory(action.equals("inspect_native") ? "native" : action.equals("inspect_javascript") ? "javascript" : "all");
+		showWorkspace(TAB_CODE);
+	}
+
+	private void showInvestigation() {
+		showingInvestigation = true;
+		setMissionVisible(false);
+		((CardLayout) workspaceDeck.getLayout()).show(workspaceDeck, "investigation");
+		setBusy(busy);
 	}
 
 	private void setMissionVisible(boolean visible) {
 		mission.setVisible(visible);
-		toggleMission.setText(AiText.str(visible ? "assessment.settings_hide" : "assessment.settings_show"));
+		toggleMission.setText(WorkspaceText.str(visible ? "options_hide" : "options_show"));
+		explain.setVisible(visible && !showingInvestigation);
 		revalidate();
 		repaint();
 	}
@@ -483,6 +538,11 @@ public final class AnalysisPanel extends JPanel {
 		if (busy || report == null || !report.isComplete() || !report.hasEvidence()) {
 			return;
 		}
+		if (previous != null && !InvestigationService.canResume(report, previous,
+				InvestigationService.profile(window.getWrapper().getDecompiler()))) {
+			status.setText(AiText.str("assessment.stale"));
+			return;
+		}
 		if (question.getText().length() > 2000 || direction.length() > 2000) {
 			status.setText(AiText.str("analysis.question_limit"));
 			return;
@@ -518,7 +578,7 @@ public final class AnalysisPanel extends JPanel {
 		long id = ++epoch;
 		setBusy(true);
 		status.setText(AiText.str("analysis.planning"));
-		results.setSelectedIndex(TAB_AI);
+		showInvestigation();
 		investigations.showProgress();
 		activeProject = project;
 		runner.submit(token -> new InvestigationService(decompiler, client).investigate(snapshot, selectedGoal, taskQuestion, focus,
@@ -560,6 +620,11 @@ public final class AnalysisPanel extends JPanel {
 
 	private void inspectApi(ApiEndpoint endpoint) {
 		if (busy || report == null || !report.isComplete()) {
+			return;
+		}
+		if (report.getApiDossier(endpoint.getId()) != null) {
+			apiCatalog.setReport(report);
+			status.setText(AiText.str("investigation.reused"));
 			return;
 		}
 		JadxProject project = window.getProject();
@@ -633,6 +698,7 @@ public final class AnalysisPanel extends JPanel {
 
 	private void refreshFindings() {
 		applicationReport.setReport(report);
+		keyCode.setReport(report);
 		investigations.setReport(report, null);
 		apiCatalog.setReport(report);
 		assessment.setReport(report);
@@ -712,6 +778,7 @@ public final class AnalysisPanel extends JPanel {
 	private void setBusy(boolean value) {
 		busy = value;
 		applicationReport.setBusy(value);
+		keyCode.setBusy(value);
 		investigations.setBusy(value);
 		boolean hasFindings = report != null && report.isComplete() && report.hasEvidence();
 		apiCatalog.setBusy(value);
@@ -730,13 +797,14 @@ public final class AnalysisPanel extends JPanel {
 		AiProfile profile = profile();
 		useAi.setEnabled(!value && profile != null && !profile.getUrl().isBlank() && !profile.getModel().isBlank());
 		explain.setEnabled(!value && hasFindings);
-		explain.setVisible(results.getSelectedIndex() != TAB_AI);
+		explain.setVisible(mission.isVisible() && !showingInvestigation);
 		deepen.setEnabled(!value && hasFindings && findings.getSelectedValue() != null);
 		source.setEnabled(findings.getSelectedValue() != null);
 		reveal.setEnabled(findings.getSelectedValue() != null && findings.getSelectedValue().getRawValue() != null);
 		export.setEnabled(report != null && !value);
 		review.setEnabled(!value && displayed != null && !displayed.getFindings().isEmpty());
-		review.setVisible(results.getSelectedIndex() == TAB_AI && displayed != null && !displayed.getFindings().isEmpty());
+		review.setVisible(showingInvestigation && displayed != null && !displayed.getFindings().isEmpty());
+		history.setVisible(showingInvestigation || activeRun != null || report != null && !report.getInvestigations().isEmpty());
 		progress.setIndeterminate(value);
 		progress.setVisible(value);
 	}
@@ -756,12 +824,12 @@ public final class AnalysisPanel extends JPanel {
 				return;
 			}
 		} else {
-			for (ResourceFile resource : window.getWrapper().getResources()) {
-				if (evidence.getTitle().startsWith(resource.getDeobfName() + ':') || evidence.getTitle().equals(resource.getDeobfName())) {
-					window.showWorkspaceExplorer();
-					window.getTabsController().codeJump(new JResource(resource, resource.getDeobfName(), JResource.JResType.FILE));
-					return;
-				}
+			ResourceFile resource = ResourceEvidenceResolver.resolve(evidence.getTitle(), window.getProject().getFilePaths(),
+					window.getWrapper().getResources());
+			if (resource != null) {
+				window.showWorkspaceExplorer();
+				window.getTabsController().codeJump(new JResource(resource, resource.getDeobfName(), JResource.JResType.FILE));
+				return;
 			}
 		}
 		showText(evidence.getTitle(), evidence.getCode());

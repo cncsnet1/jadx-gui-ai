@@ -10,15 +10,17 @@ import jadx.gui.ai.AiRecord;
 import jadx.gui.ai.AiReport;
 import jadx.gui.ai.AiText;
 
-/** Last bounded, redacted project analysis. No live decompiler objects are retained. */
+/** Last bounded project analysis. No live decompiler objects are retained. */
 public final class AnalysisReport {
-	public static final String RULE_VERSION = "3";
+	public static final String RULE_VERSION = "6";
 	private String fingerprint;
 	private String ruleVersion = RULE_VERSION;
 	private String engineProfile = "";
+	private String appPackage = "";
 	private long createdAt = System.currentTimeMillis();
 	private List<AnalysisFinding> findings = new ArrayList<>();
 	private List<String> gaps = new ArrayList<>();
+	private Map<String, Integer> budgetOmissions = new LinkedHashMap<>();
 	private int classes;
 	private int totalClasses;
 	private int resources;
@@ -30,11 +32,39 @@ public final class AnalysisReport {
 	private List<InvestigationRun> investigations = new ArrayList<>();
 	private Map<String, ApiDossier> apiDossiers = new LinkedHashMap<>();
 	private List<ApiTrafficEvidence> trafficEvidence = new ArrayList<>();
+	private ApkProfile profile = new ApkProfile();
+	private FrameworkAnalysis frameworkAnalysis = new FrameworkAnalysis();
 	private transient java.util.Map<String, ApiEndpoint> apiIndex;
 	private transient java.util.Map<ApiEndpoint.Origin, Integer> apiCounts;
 
 	public List<ApiEndpoint> getApis() {
 		return Collections.unmodifiableList(apis);
+	}
+
+	public String getAppPackage() {
+		return appPackage == null ? "" : appPackage;
+	}
+
+	public void setAppPackage(String value) {
+		if (value != null && value.length() <= 512 && jadx.core.deobf.NameMapper.isValidFullIdentifier(value)) {
+			appPackage = value;
+		}
+	}
+
+	public ApkProfile getProfile() {
+		return profile == null ? new ApkProfile() : profile;
+	}
+
+	public void setProfile(ApkProfile value) {
+		profile = java.util.Objects.requireNonNull(value).snapshot();
+	}
+
+	public FrameworkAnalysis getFrameworkAnalysis() {
+		return frameworkAnalysis == null ? new FrameworkAnalysis() : frameworkAnalysis;
+	}
+
+	public void setFrameworkAnalysis(FrameworkAnalysis value) {
+		frameworkAnalysis = java.util.Objects.requireNonNull(value).snapshot();
 	}
 
 	public List<InvestigationRun> getInvestigations() {
@@ -69,7 +99,8 @@ public final class AnalysisReport {
 	}
 
 	public boolean hasEvidence() {
-		return !findings.isEmpty() || !apis.isEmpty();
+		return !findings.isEmpty() || !apis.isEmpty() || ProfileLead.hasEvidence(getProfile())
+				|| !getFrameworkAnalysis().getFindings().isEmpty();
 	}
 
 	public List<ApiTrafficEvidence> getTrafficEvidence() {
@@ -179,8 +210,14 @@ public final class AnalysisReport {
 			existing.merge(endpoint);
 			return;
 		}
-		int limit = endpoint.getOrigin() == ApiEndpoint.Origin.CODE_CONTEXT ? 250 : 750;
+		boolean codeReserve = endpoint.getSources().stream().anyMatch(source -> source.getNode() != null
+				&& EvidenceTriage.classRank(this, source.getNode().getDeclaringClass()) >= 0);
+		int limit = endpoint.getOrigin() == ApiEndpoint.Origin.CODE_CONTEXT
+				? 250 + (codeReserve ? 75 : 0)
+				: 750 + (codeReserve ? 150 : 0);
 		if (apiCounts.getOrDefault(endpoint.getOrigin(), 0) >= limit) {
+			budgetOmission("api." + (codeReserve ? "code_reserve." : "general.")
+					+ endpoint.getOrigin().name().toLowerCase(java.util.Locale.ROOT));
 			gap(AiText.str("api.limit") + endpoint.getOrigin().label());
 			return;
 		}
@@ -199,6 +236,10 @@ public final class AnalysisReport {
 
 	public void setEngineProfile(String value) {
 		engineProfile = value;
+	}
+
+	public String getEngineProfile() {
+		return engineProfile;
 	}
 
 	public boolean matches(String value, String profile) {
@@ -251,6 +292,24 @@ public final class AnalysisReport {
 		}
 	}
 
+	/** Counts rejected matches, including repetitions; it is not a count of unique missing findings. */
+	public Map<String, Integer> getBudgetOmissions() {
+		return budgetOmissions == null ? Map.of() : Collections.unmodifiableMap(budgetOmissions);
+	}
+
+	public long getBudgetOmittedCount() {
+		return getBudgetOmissions().values().stream().mapToLong(Integer::longValue).sum();
+	}
+
+	void budgetOmission(String bucket) {
+		if (budgetOmissions == null) {
+			budgetOmissions = new LinkedHashMap<>();
+		}
+		if (budgetOmissions.containsKey(bucket) || budgetOmissions.size() < 64) {
+			budgetOmissions.merge(bucket, 1, (previous, increment) -> previous == Integer.MAX_VALUE ? previous : previous + increment);
+		}
+	}
+
 	public void totals(int code, int res) {
 		totalClasses = code;
 		totalResources = res;
@@ -266,18 +325,23 @@ public final class AnalysisReport {
 
 	public String coverage() {
 		return String.format(AiText.str("analysis.coverage"), classes, totalClasses, resources, totalResources, findings.size())
-				+ " · " + String.format(AiText.str("api.coverage"), apis.size());
+				+ " · " + String.format(AiText.str("api.coverage"), apis.size())
+				+ (getBudgetOmittedCount() == 0
+						? ""
+						: " · " + String.format(AiText.str("analysis.budget_omitted"), getBudgetOmittedCount()));
 	}
 
 	/** Publish an independent snapshot while the worker continues. */
 	public AnalysisReport snapshot() {
 		AnalysisReport copy = new AnalysisReport();
 		copy.engineProfile = engineProfile;
+		copy.appPackage = getAppPackage();
 		copy.fingerprint = fingerprint;
 		copy.ruleVersion = ruleVersion;
 		copy.createdAt = createdAt;
 		copy.findings = findings.stream().map(AnalysisFinding::copy).collect(java.util.stream.Collectors.toList());
 		copy.gaps = new ArrayList<>(gaps);
+		copy.budgetOmissions = new LinkedHashMap<>(getBudgetOmissions());
 		copy.classes = classes;
 		copy.totalClasses = totalClasses;
 		copy.resources = resources;
@@ -290,6 +354,8 @@ public final class AnalysisReport {
 		copy.investigations = investigations.stream().map(InvestigationRun::snapshot).collect(java.util.stream.Collectors.toList());
 		copy.apiDossiers = new LinkedHashMap<>(apiDossiers);
 		copy.trafficEvidence = new ArrayList<>(trafficEvidence);
+		copy.profile = getProfile().snapshot();
+		copy.frameworkAnalysis = getFrameworkAnalysis().snapshot();
 		return copy;
 	}
 
@@ -297,6 +363,8 @@ public final class AnalysisReport {
 		StringBuilder text = new StringBuilder("# " + AiText.str("analysis.title") + "\n\n");
 		text.append(coverage()).append("\n\n").append(AiText.str(complete ? "analysis.scan_complete" : "analysis.partial"))
 				.append("\n\n").append(AiText.str("analysis.limits")).append("\n\n");
+		text.append(getProfile().markdown());
+		text.append(getFrameworkAnalysis().markdown());
 		for (String gap : gaps) {
 			text.append("- ").append(gap).append('\n');
 		}
@@ -315,7 +383,7 @@ public final class AnalysisReport {
 				text.append('\n').append(AiText.str("assessment.updated")).append(": ")
 						.append(java.time.Instant.ofEpochMilli(review.getUpdatedAt()))
 						.append('\n').append(AiText.str("assessment.note")).append(":\n")
-						.append(AnalysisRedactor.redact(review.getNote()).replace("````", "` ` ` `"));
+						.append(review.getNote().replace("````", "` ` ` `"));
 			}
 			text.append("\n````\n");
 		}

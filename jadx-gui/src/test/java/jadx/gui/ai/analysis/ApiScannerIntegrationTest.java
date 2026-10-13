@@ -70,9 +70,9 @@ class ApiScannerIntegrationTest {
 			assertThat(report.getGaps()).isEmpty();
 			assertThat(report.getApis()).filteredOn(e -> e.getOrigin() == ApiEndpoint.Origin.DECLARATION).hasSize(2);
 			ApiEndpoint users = report.getApis().stream().filter(e -> e.getMethod().equals("GET")).findFirst().orElseThrow();
-			assertThat(users.getAddress()).isEqualTo("users/{id}");
+			assertThat(users.getAddress()).isEqualTo("users/{id}?token=fixture-query-secret");
 			assertThat(users.parameterSummary()).contains("Path · id : int", "Query · page : int");
-			assertThat(users.getAuthHints()).contains("Bearer [redacted]");
+			assertThat(users.getAuthHints()).contains("Bearer fixture-header-secret");
 			ApiDossier dossier = new ApiRelationResolver(decompiler).resolve(users, new AiCancellation());
 			assertThat(dossier.getBindings()).hasSize(1);
 			assertThat(dossier.getBindings().get(0).getBaseUrl()).isEqualTo("https://api.example.test/");
@@ -85,7 +85,7 @@ class ApiScannerIntegrationTest {
 			ApiEndpoint remove = report.getApis().stream().filter(e -> e.getMethod().equals("DELETE")).findFirst().orElseThrow();
 			assertThat(remove.isDynamicUrl()).isTrue();
 			assertThat(remove.getBody()).contains("java.lang.Object");
-			assertThat(report.markdown()).doesNotContain("fixture-query-secret", "fixture-header-secret");
+			assertThat(report.markdown()).contains("fixture-query-secret", "fixture-header-secret");
 			List<String> requests = new ArrayList<>();
 			var investigator = new AnalysisInvestigator(decompiler, (model, messages, temperature, tokens, cancellation, output) -> {
 				requests.add(messages.toString());
@@ -95,7 +95,7 @@ class ApiScannerIntegrationTest {
 					new AiCancellation(), s -> {
 					});
 			assertThat(requests).hasSize(2);
-			assertThat(requests.toString()).doesNotContain("fixture-query-secret", "fixture-header-secret");
+			assertThat(requests.toString()).contains("fixture-query-secret", "fixture-header-secret");
 			assertThat(result.getEvidence()).anyMatch(e -> e.getTitle().contains("definition"));
 			assertThat(result.getEvidence()).filteredOn(e -> e.getTitle().contains("definition"))
 					.allSatisfy(e -> assertThat(e.getCode()).contains("users("));

@@ -38,20 +38,21 @@ class ApiExtractorTest {
 	}
 
 	@Test
-	void extractsMethodPathNamedInputsAndHeaderCluesWithoutCredentialValues() {
+	void extractsMethodPathNamedInputsAndOriginalHeaderValues() {
 		ApiEndpoint api = ApiExtractor.declaration(List.of(annotation("POST", "users/{id}?token=secret-query&sort=private-sort"),
 				annotation("Headers", "Authorization: Bearer secret-header"), annotation("FormUrlEncoded", "")),
 				List.of(param("Path", "id"), param("Query", "page"), param("Field", "email"), param("Header", "X-Api-Key")),
 				List.of("int", "int", "java.lang.String", "java.lang.String"), "Api.login", REF);
 		assertThat(api.getOrigin()).isEqualTo(ApiEndpoint.Origin.DECLARATION);
 		assertThat(api.getMethod()).isEqualTo("POST");
-		assertThat(api.getAddress()).isEqualTo("users/{id}");
+		assertThat(api.getAddress()).isEqualTo("users/{id}?token=secret-query&sort=private-sort");
 		assertThat(api.getHost()).isEmpty();
 		assertThat(api.getBody()).isEqualTo("FormUrlEncoded");
 		assertThat(api.parameterSummary()).contains("Path · id", "Query · page", "Field · email", "Header · X-Api-Key",
 				"Query (URL) · token");
 		assertThat(api.authSummary()).contains("Bearer", "Authorization", "X-Api-Key");
-		assertThat(ApiCatalogPanel.json(List.of(api))).doesNotContain("secret-query", "private-sort", "secret-header");
+		assertThat(ApiCatalogPanel.json(List.of(api))).contains("secret-query", "private-sort", "secret-header", "\"redacted\": false");
+		assertThat(api.getParameters()).anyMatch(p -> p.getName().equals("Authorization") && p.getValue().equals("Bearer secret-header"));
 	}
 
 	@Test
@@ -82,22 +83,23 @@ class ApiExtractorTest {
 				List.of(param("Part", "photo"), param("PartMap", "")), List.of("RequestBody", "Map"), "Api.files", REF);
 		assertThat(api.getHost()).isEqualTo("api.example.test");
 		assertThat(api.getBody()).isEqualTo("Multipart");
-		assertThat(api.getAuthHints()).contains("Basic [redacted]");
-		assertThat(ApiCatalogPanel.json(List.of(api))).doesNotContain("c2VjcmV0", "private-cookie");
+		assertThat(api.getAuthHints()).contains("Basic c2VjcmV0");
+		assertThat(ApiCatalogPanel.json(List.of(api))).contains("c2VjcmV0", "private-cookie");
 	}
 
 	@Test
-	void addressLeadsKeepQueryNamesButDoNotInventHttpMethods() {
+	void addressLeadsKeepOriginalQueryAndUserinfoButDoNotInventHttpMethods() {
 		AnalysisReport report = new AnalysisReport();
 		AnalysisRules rules = new AnalysisRules(report);
 		rules.scan("https://bob:pass@api.example.test/v1?token=secret&user_id=123#private-fragment", "config.txt", null);
 		ApiEndpoint api = report.getApis().get(0);
 		assertThat(api.getOrigin()).isEqualTo(ApiEndpoint.Origin.ADDRESS);
 		assertThat(api.getMethod()).isEmpty();
-		assertThat(api.getAddress()).isEqualTo("https://api.example.test/v1");
+		assertThat(api.getAddress()).isEqualTo("https://bob:pass@api.example.test/v1?token=secret&user_id=123#private-fragment");
+		assertThat(api.getHost()).isEqualTo("api.example.test");
 		assertThat(api.parameterSummary()).contains("token", "user_id");
-		assertThat(ApiCatalogPanel.json(report.getApis())).doesNotContain("bob", "pass", "secret", "123", "private-fragment");
-		assertThat(api.getAuthHints()).contains("URL userinfo [redacted]");
+		assertThat(ApiCatalogPanel.json(report.getApis())).contains("bob", "pass", "secret", "123", "private-fragment");
+		assertThat(api.getAuthHints()).contains("URL userinfo: bob:pass");
 	}
 
 	@Test
@@ -117,7 +119,8 @@ class ApiExtractorTest {
 		report.addApi(first);
 		AnalysisReport snapshot = report.snapshot();
 		report.addApi(new ApiEndpoint(ApiEndpoint.Origin.ADDRESS, "", "https://api.example.test/a?key=other-secret", "Two", null));
-		assertThat(report.getApis()).hasSize(1);
+		report.addApi(new ApiEndpoint(ApiEndpoint.Origin.ADDRESS, "", "https://api.example.test/a?key=secret", "Three", null));
+		assertThat(report.getApis()).hasSize(2);
 		assertThat(report.getApis().get(0).getSources()).hasSize(2);
 		assertThat(snapshot.getApis().get(0).getSources()).hasSize(1);
 		for (int i = 0; i < 800; i++) {
@@ -128,9 +131,27 @@ class ApiExtractorTest {
 		assertThat(report.getGaps()).isNotEmpty();
 		var gson = defaultGsonBuilder().create();
 		String json = gson.toJson(report);
-		assertThat(json).doesNotContain("other-secret", "key=secret");
+		assertThat(json).contains("other-secret");
+		assertThat(gson.fromJson(json, AnalysisReport.class).getApis().get(0).getAddress())
+				.isEqualTo("https://api.example.test/a?key=secret");
 		assertThat(gson.fromJson(json, AnalysisReport.class).getApis()).hasSize(751);
 		assertThat(gson.fromJson("{}", AnalysisReport.class).getApis()).isEmpty();
+	}
+
+	@Test
+	void originalParameterValuesRoundTripAndOversizedFieldsStayBounded() {
+		ApiEndpoint api = new ApiEndpoint(ApiEndpoint.Origin.DECLARATION, "POST", "/login?code=123", "app.js:1", null);
+		api.parameter("Body (JS)", "password", "String", "visible-password");
+		api.header("Authorization: Bearer " + "a".repeat(5000));
+		var gson = defaultGsonBuilder().disableJdkUnsafe().create();
+		ApiEndpoint saved = gson.fromJson(gson.toJson(api), ApiEndpoint.class);
+		assertThat(saved.getParameters()).anyMatch(p -> p.getName().equals("password") && p.getValue().equals("visible-password"));
+		assertThat(saved.getParameters()).allSatisfy(p -> assertThat(p.getValue()).hasSizeLessThanOrEqualTo(4096));
+		assertThat(saved.detail()).contains("visible-password", "code = 123");
+		assertThat(saved.isTruncated()).isTrue();
+		assertThat(new ApiEndpoint(ApiEndpoint.Origin.ADDRESS, "", "https://example.test/" + "x".repeat(3000), "source", null)
+				.getAddress()).hasSizeLessThanOrEqualTo(2000);
+		assertThat(ApiEndpoint.boundedText("first\u0000second\nthird", 100)).isEqualTo("first second\nthird");
 	}
 
 	@Test

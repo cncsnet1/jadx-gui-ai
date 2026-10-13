@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/cncsnet1/jadx-gui-ai/releases"><img src="https://img.shields.io/badge/release-v2.0.0-38b2ac?style=flat-square" alt="v2.0.0"></a>
+  <a href="https://github.com/cncsnet1/jadx-gui-ai/releases"><img src="https://img.shields.io/badge/release-v2.1.0-38b2ac?style=flat-square" alt="v2.1.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-64748b?style=flat-square" alt="Apache-2.0"></a>
   <img src="https://img.shields.io/badge/desktop-Windows%20%7C%20macOS%20%7C%20Linux-6085cc?style=flat-square" alt="Windows, macOS, Linux">
   <img src="https://img.shields.io/badge/AI-cloud%20%2B%20local-8b72cf?style=flat-square" alt="Cloud and local models">
@@ -30,17 +30,19 @@
 
 不懂逆向、不知道该搜哪个类，也可以先从“这个应用里有什么”“登录怎么实现”“有哪些接口和敏感信息线索”开始。
 
-> **v2.0.0 正式版：** 打开 APK 自动生成本地应用报告；「应用报告 / API 地图 / 调查记录」三页导航；一键梳理 API 调用路径与 Retrofit / OkHttp 客户端；有预算、可保存和继续的 AI 调查；MCP 调用关系工具、REA 工具筛选和长结果分页。无需模型即可扫描与查看请求关系。见[本轮实现范围与后续设计](docs/UPSTREAM_REA_DESIGN.md)。
+> **v2.1.0 正式版：** 打开 APK 即可获得「应用概览 / 接口与通信 / 关键代码」。先识别保护特征与技术栈，再沿可并存的技术路线查看请求、认证、加密和 native 线索；有请求依据的 API 优先显示，背景候选可恢复，原值不脱敏。需要深入时，让 Agent 沿选定来源调用本地工具、保留证据并继续任务。见 [正式版说明](docs/releases/v2.1.0.md)。
 
-> **主分支开发进展（尚未包含在 v2.0.0 下载包）：** API 地图新增 Burp「实际流量」。在 Burp 安装并启用官方 MCP Server 后，点击「连接 Burp」即可使用默认本机地址，成功后自动记住配置；无需导出代理 JAR、选择 Java 或填写启动参数。支持按主机读取历史、源码候选关联、证据摘要保存和转交 Repeater。目前通过协议样本和 Windows 界面回归，完整 Burp 实机联调待完成。见 [Burp 联动说明](docs/BURP_WORKFLOW.md)。
+> **Burp 联动：**「接口与通信」提供「实际流量」。在 Burp 安装并启用官方 MCP Server 后，点击「连接 Burp」即可使用默认本机地址，成功后自动记住配置；无需导出代理 JAR、选择 Java 或填写启动参数。支持按主机读取历史、源码候选关联、证据摘要保存和转交 Repeater。目前通过协议样本和 Windows 界面回归，完整 Burp 实机联调待完成。见 [Burp 联动说明](docs/BURP_WORKFLOW.md)。
 
-**Agent 升级（开发预览）：** 新增目标驱动的任务工作台：快捷选择调查目标，查看可更新的计划，由 Agent 调用本地工具取证，再交付带源码依据的结果。支持补充方向后继续、停止保留、证据跳转与函数调用兼容回退，沿用已有模型连接，无需额外安装 Agent 环境。见 [Agent 工作台说明](docs/AGENT_WORKSPACE.md)。
+**Agent 任务：** 新增目标驱动的任务工作台：快捷选择调查目标，查看可更新的计划，由 Agent 调用本地工具取证，再交付带源码依据的结果。支持补充方向后继续、停止保留、证据跳转与函数调用兼容回退，沿用已有模型连接，无需额外安装 Agent 环境。见 [Agent 工作台说明](docs/AGENT_WORKSPACE.md)。
 
-开发版 Windows 完整包还修复了英文系统区域下中文安装目录无法启动的问题：直接打开包内 EXE，无需修改系统区域或配置 Java。新版启动器适用于 Windows 10 1903+ / Windows 11；具体变化见 [v2.1.0-dev 预览说明](docs/releases/v2.1.0-dev.md)。
+**APK 工作台：** 主入口收敛为「应用概览 / 接口与通信 / 关键代码」。本地识别保护特征、技术栈和 DEX / JS / native 分布，按 uni-app、React Native、Cordova / WebView、Flutter、Android、Unity 产物创建可并存的分析路线，各自说明已读内容与覆盖缺口。接口页串起调用入口、参数、加密线索、网络出口和实际流量，支持 uni.request / fetch / axios 提取、ELF 盘点及 MCP `get_apk_profile`。API 清单默认突出有请求依据的条目，背景候选可一键恢复并查看分层原因；未知归属不等于低风险。Agent 可沿实际来源继续读取脚本。界面、保存与全部 API 导出保留原值。这些基础功能不需要安装 Python、Node、Frida 或 Ghidra；自动脱壳、Hermes / Dart AOT / IL2CPP 解码与 native 反编译尚未接入。见 [APK 工作台范围、降噪与研究记录](docs/APK_WORKBENCH.md)。
+
+v2.1.0 Windows 完整包修复了英文系统区域下中文安装目录无法启动的问题：直接打开包内 EXE，无需修改系统区域或配置 Java。新版启动器适用于 Windows 10 1903+ / Windows 11；具体变化见 [v2.1.0 正式版说明](docs/releases/v2.1.0.md)。
 
 **面向初学者的应用调查工作区**：先梳理 API、入口和有用材料，再由 AI 读取相关代码、比较值得先尝试的入口，解释已有依据与待追踪环节。可以导出线索包，到其他工具继续调查；需要评估问题时再记录人工核查。未连接模型也能使用本地发现、API 清单与路线指南。原有源码助手、AI 搜索、人工复核与 MCP 继续保留。
 
-> 下载 **v2.0.0** 即可使用这套流程。本地发现无需配置模型；AI 深入调查使用你配置的连接。分析基于有限静态证据，不代表已确认漏洞或攻击成功率。
+> 下载 **v2.1.0** 即可使用这套流程。本地发现无需配置模型；AI 深入调查使用你配置的连接。分析基于有限静态证据，不代表已确认漏洞或攻击成功率。
 
 <table>
   <tr>
@@ -54,15 +56,19 @@
 
 ### 报告先行，可继续调查
 
-APK 加载后自动生成本地报告，先解释值得看的线索与未知条件。三个主页面连接应用报告、API 地图与调查记录；查询调用路径和客户端关系无需模型，AI 深入调查则保留步骤和证据，支持取消后继续。
+APK 加载后自动生成本地概览。三页工作台连接保护与技术栈、接口与通信、关键代码；识别出的技术路线可切换并显示覆盖缺口。查询调用路径和客户端关系无需模型，AI 深入调查则保留计划、步骤与证据，支持停止后继续。
 
-![应用报告与调查入口](docs/images/application-report-graphite.png)
+![应用概览与技术路线](docs/images/apk-workbench-overview.png)
 
-[浅色主题](docs/images/application-report-light.png) · [调查历史与回答](docs/images/investigation-history-graphite.png)。这些快照来自实际 Swing 界面，使用演示样本和本机模拟模型；对应 v2.0.0。下文同时展示保留的调查、核查与源码工具，部分截图来自早期版本。
+![接口与通信：默认突出有请求依据的条目](docs/images/apk-workbench-communication.png)
+
+![关键代码：按技术路线继续查看来源](docs/images/apk-workbench-framework.png)
+
+[浅色主题](docs/images/apk-workbench-code.png) · [Agent 使用说明](docs/AGENT_WORKSPACE.md)。这些快照由实际 Swing 组件离屏渲染，使用本地合成样本；打开和查看本地结果不调用模型。下文的调用路径、核查与源码工具保留早期截图，不作为真实模型准确性的证明。
 
 ### 从接口追到业务调用者
 
-在 API 地图选择接口声明或请求构造入口，点击「一键梳理接口」，查看最多四层的业务调用路径、客户端配置与拦截器。路径节点支持调用依据和源码跳转，无法继续追查的地方会标明原因。静态关系不等于已执行或可利用。
+在「接口与通信」选择接口声明或请求构造入口，点击「一键梳理接口」，查看最多四层的业务调用路径、客户端配置与拦截器。路径节点支持调用依据和源码跳转，无法继续追查的地方会标明原因。静态关系不等于已执行或可利用。
 
 ![内置 API 调用路径](docs/images/api-call-path-graphite.png)
 
@@ -86,7 +92,7 @@ APK 加载后自动生成本地报告，先解释值得看的线索与未知条�
 
 ### 自动梳理 API
 
-“API 清单”把 **接口声明、地址线索、请求构造入口** 分开呈现，可搜索域名、路径、请求方法、参数和源码位置。Retrofit 声明可提取 Path / Query / Header / Body、表单与上传字段；OkHttp 和 HttpURLConnection 提供待追踪的构造入口。支持源码跳转、AI 继续追踪、随项目保存及脱敏 JSON / Markdown 导出。
+“API 清单”把 **接口声明、地址线索、请求构造入口** 分开呈现，可搜索域名、路径、请求方法、参数和源码位置。Retrofit 声明可提取 Path / Query / Header / Body、表单与上传字段；OkHttp 和 HttpURLConnection 提供待追踪的构造入口。支持源码跳转、AI 继续追踪、随项目保存及保留原值的 JSON / Markdown 导出。
 
 相对路径尚未关联基础地址时会明确标记；未发现认证头也不会判定为匿名接口。完整覆盖范围及后续安全检查设计见 [API 清单说明](docs/API_INVENTORY.md)。
 
@@ -153,30 +159,30 @@ APK 加载后自动生成本地报告，先解释值得看的线索与未知条�
 
 > **同时提供双向 MCP。** 外部 AI 可以查询当前 JADX 项目的类、源码与引用；内置 AI 也可以连接 stdio / HTTP MCP 工具，逐次确认调用。入口为「工具 → MCP 连接中心」，详见 [MCP 使用说明](docs/MCP.md)。
 
-前往 [GitHub Latest Release](https://github.com/cncsnet1/jadx-gui-ai/releases/latest) 下载 **v2.0.0** 对应的平台包。前五种包均内置 **Eclipse Temurin 21**，无需另装 Java；AI 模型需自行连接。
+前往 [GitHub Latest Release](https://github.com/cncsnet1/jadx-gui-ai/releases/latest) 下载 **v2.1.0** 对应的平台包。前五种包均内置 **Eclipse Temurin 21**，无需另装 Java；AI 模型需自行连接。
 
 | 你的环境 | 发布包 | 启动入口 |
 | --- | --- | --- |
-| Windows x64 | `jadx-gui-ai-2.0.0-windows-x64.zip` | 解压后双击 `jadx-gui-ai.exe` |
-| macOS · Apple Silicon | `jadx-gui-ai-2.0.0-macos-arm64.zip` | 解压后打开 `JADX GUI AI.app` |
-| macOS · Intel | `jadx-gui-ai-2.0.0-macos-x64.zip` | 解压后打开 `JADX GUI AI.app` |
-| Linux x64 | `jadx-gui-ai-2.0.0-linux-x64.tar.gz` | `./bin/jadx-gui-ai` |
-| Linux ARM64 | `jadx-gui-ai-2.0.0-linux-arm64.tar.gz` | `./bin/jadx-gui-ai` |
-| 自备 Java · 通用包 | `jadx-gui-ai-2.0.0-portable.zip` | `bin/jadx-gui-ai` 或 `bin\jadx-gui-ai.bat` |
+| Windows x64 | `jadx-gui-ai-2.1.0-windows-x64.zip` | 解压后双击 `jadx-gui-ai.exe` |
+| macOS · Apple Silicon | `jadx-gui-ai-2.1.0-macos-arm64.zip` | 解压后打开 `JADX GUI AI.app` |
+| macOS · Intel | `jadx-gui-ai-2.1.0-macos-x64.zip` | 解压后打开 `JADX GUI AI.app` |
+| Linux x64 | `jadx-gui-ai-2.1.0-linux-x64.tar.gz` | `./bin/jadx-gui-ai` |
+| Linux ARM64 | `jadx-gui-ai-2.1.0-linux-arm64.tar.gz` | `./bin/jadx-gui-ai` |
+| 自备 Java · 通用包 | `jadx-gui-ai-2.1.0-portable.zip` | `bin/jadx-gui-ai` 或 `bin\jadx-gui-ai.bat` |
 
-通用包使用 64 位 Java 17+，推荐 Java 21。Linux 桌面包面向 glibc 环境，需要图形桌面；macOS 包尚未签名、公证，首次打开请按系统提示操作。各平台的实际验证范围见 [发布说明](docs/releases/v2.0.0.md)。
+通用包使用 64 位 Java 17+，推荐 Java 21。Linux 桌面包面向 glibc 环境，需要图形桌面；macOS 包尚未签名、公证，首次打开请按系统提示操作。各平台的实际验证范围见 [发布说明](docs/releases/v2.1.0.md)。
 
 包内同时保留 JADX CLI：`bin/jadx`，Windows 使用 `bin\jadx.bat`。发布附件提供 `SHA256SUMS.txt` 和 `release-manifest.json`，用于核对下载内容与内置运行环境。
 
-**打开 APK 时出现插件初始化空指针？** 如果堆栈指向 `JadxPluginsTools.getEnabledPluginJars` → `Path.resolve`，通常是已安装插件清单中的 `jar` 字段缺失，并非该异常由 JDK 8 引起。开发分支会自动跳过无效记录；清单 JSON 损坏时，先保留完整 `.bak` 备份，再继续加载内置插件与 dropins 插件，无需手改配置。恢复会暂时停用损坏清单登记的外部插件，可随后重新安装，备份位置会写入日志。此修复尚未包含在 v2.0.0 下载包中。旧版临时处理：关闭程序，备份并重命名 `%APPDATA%\skylot\jadx\config\plugins\plugins.json` 后重启；如设置了 `JADX_CONFIG_DIR`，使用该目录下的 `plugins\plugins.json`。
+**插件清单自动恢复：** v2.1.0 自动跳过缺失或无效的插件 JAR 记录；清单 JSON 损坏时保留完整 `.bak` 备份，再继续加载内置和 dropins 插件。无需手改配置，损坏清单登记的外部插件可随后重新安装。旧版在 `getEnabledPluginJars` → `Path.resolve` 的空指针可升级至 v2.1.0 处理；该异常不是由 JDK 8 引起。
 
 ## 三分钟开始第一次分析
 
-以下流程随 v2.0.0 发布；建议将新包完整解压到独立目录后启动。
+以下流程随 v2.1.0 发布；建议将新包完整解压到独立目录后启动。
 
 1. **打开文件**：拖入 APK、DEX、JAR 或 CLASS，加载完成后自动生成本地应用报告。
 2. **先看报告**：无需模型即可浏览接口、入口、疑似敏感常量、配置与行为线索，并查看证据位置与覆盖缺口。
-3. **一键梳理接口**：在 API 地图选择接口声明或请求构造入口，查看调用路径、客户端关系、拦截器与未解环节。
+3. **一键梳理接口**：在「接口与通信」选择接口声明或请求构造入口，查看调用路径、客户端关系、拦截器与未解环节。
 4. **让 AI 继续追查**：配置一次兼容 Chat Completions 的连接，选择目标或线索，AI 会有预算地读取关联代码；调查过程保留步骤和证据，支持停止与继续。
 5. **保存与导出**：保存 `.jadx` 项目或导出报告、API 清单和线索包，到后续环境继续核对；需要评估问题时再记录人工核查。
 
@@ -200,7 +206,7 @@ APK 加载后自动生成本地报告，先解释值得看的线索与未知条�
 | 已实现 | 具体行为 |
 | --- | --- |
 | 工作台布局 | 首页、侧边导航、命令面板、可恢复的专注模式，深浅主题与紧凑侧栏 |
-| 目标分析 | 本地字节码/资源扫描、去重与分类；AI 从目录选择最多 3 条线索，每轮最多 6 次规划 / 12 次本地读取；可停止、保存和继续 |
+| 目标分析 | 本地字节码/资源扫描、去重与分类；AI 从目录选择最多 3 条线索，每次任务最多 10 轮规划 / 12 次本地读取；可停止、保存和继续 |
 | AI 搜索 | 按类名语义发现入口；包 / 当前类范围、批次进度、匹配说明、取消与本地筛选 |
 | 源码上下文 | 当前方法、选区或类；主源码最多 12,000 字符，最多 3 个调用者各 3,000 字符，截断可见 |
 | 多连接与任务分配 | 独立保存服务与模型，支持临时切换、环境变量密钥、响应诊断 |
@@ -243,6 +249,8 @@ APK 加载后自动生成本地报告，先解释值得看的线索与未知条�
 - [x] 多连接、任务分配与上下文预检
 - [x] 证据调查台、人工复核与报告导出
 - [x] 工作台布局重构、命令面板、深浅主题与 AI 搜索
+- [x] 多技术栈自动路线、业务证据优先与可恢复背景候选
+- [x] Agent 计划、本地工具取证、原值保留与任务恢复
 - [x] 可选本地 Java 反混淆预处理与失败回退
 - [ ] 跨多次分析组织调查目标，追踪证据和结论变化
 - [ ] 对同一快照做多模型复核，呈现分歧与缺失条件

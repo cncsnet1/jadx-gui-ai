@@ -9,7 +9,7 @@
 | 模式 | 调用方向 | 当前能力 |
 | --- | --- | --- |
 | 共享 JADX | 外部 MCP 客户端 → 已打开的 JADX 项目 | 本机 Streamable HTTP，只读查询当前项目 |
-| 外部工具 | JADX → 你配置的 MCP 服务 | stdio 子进程或 Streamable HTTP；主分支另增旧版 HTTP+SSE；可手动执行，也可交给 AI 选择 |
+| 外部工具 | JADX → 你配置的 MCP 服务 | stdio 子进程或 Streamable HTTP；v2.1.0 提供旧版 HTTP+SSE；可手动执行，也可交给 AI 选择 |
 
 服务端不需要配置模型或 API Key。AI 调用外部工具时，所选模型需要支持 OpenAI 兼容的 Chat Completions `tools` / `tool_calls`；普通源码分析仍使用原来的流式接口。
 
@@ -48,6 +48,8 @@
 
 v2.0.0 正式版新增两个共用本地操作：`trace_calls(className, methodId)` 返回最多 32 个直接字节码调用目标及覆盖边界；`inspect_api(className, methodId)` 读取 Retrofit 声明的客户端构建、基础地址、已注册拦截器及来源，并返回有界的上游调用路径 `callPath`（节点、字节码调用边、指令偏移和停止原因）。这些关系与 GUI 使用同一实现，不执行 HTTP 请求，也不证明运行时可达性。
 
+v2.1.0 新增 `get_apk_profile(offset, limit)`：返回保护特征、技术栈、代码分布与分页 native 库信息。库列表默认 6 项、最多 20 项，各组符号最多 20 条并标明截断；只有相对归档路径，没有本机完整路径。静态特征不代表脱壳成功或已执行 native 反编译。此工具随 v2.1.0 正式版提供，范围见 [APK 工作台](APK_WORKBENCH.md)。
+
 `className` 优先使用类列表返回的原始名称；`methodId` 必须使用方法列表返回的完整标识，以区分重载方法。分页从 `offset: 0` 开始；响应带有 `nextOffset` 时继续请求。列表默认 100 条、最多 500 条；源码默认 20,000 字符、最多 40,000 字符，偏移量按 Java UTF-16 字符单元计算。`search_code` 即使没有匹配也可能返回下一页。
 
 项目共享仅绑定 `127.0.0.1`，校验 Host、Origin 和随机 Bearer 令牌。开启共享即允许持有令牌的本机客户端读取当前项目，不再逐条弹窗。停止、关闭或切换项目会撤销共享；再次启动会生成新令牌，旧配置需要更新。不会远程打开其他文件、修改源码、执行 Shell 或把外部调用再转交给 AI。
@@ -73,7 +75,7 @@ v2.0.0 正式版新增两个共用本地操作：`trace_calls(className, methodI
 
 远程连接要求 HTTPS，本机可使用 HTTP。URL 不允许内嵌凭据、查询参数或片段；不会跟随重定向。密钥从 JADX 启动时继承的环境读取，修改环境后通常需要重启 JADX。
 
-主分支新增 `sse` 传输选项（尚未包含在 v2.0.0）：用于旧版 HTTP+SSE 服务，填写其 SSE 地址；`http` 继续用于 Streamable HTTP。客户端先打开事件流，再向服务公布的同源消息端点发送请求；不同主机、协议或端口的消息端点会被拒绝。Burp 用户可直接使用 API 地图中的「连接 Burp」，无需在此手填传输参数。
+v2.1.0 新增 `sse` 传输选项：用于旧版 HTTP+SSE 服务，填写其 SSE 地址；`http` 继续用于 Streamable HTTP。客户端先打开事件流，再向服务公布的同源消息端点发送请求；不同主机、协议或端口的消息端点会被拒绝。Burp 用户可直接使用接口与通信中的「连接 Burp」，无需在此手填传输参数。
 
 ### 手动测试和 AI 调用
 
@@ -93,9 +95,9 @@ v2.0.0 正式版新增两个共用本地操作：`trace_calls(className, methodI
 
 ## 兼容范围与限制
 
-主分支另增 Burp 专用页面与 `burp-readonly` AI 工具范围，通过内置 HTTP+SSE 客户端直连官方扩展，无需代理 JAR。原有 stdio 配置仍可使用。详见 [Burp 联动说明](BURP_WORKFLOW.md)；此新增适配尚未包含在 v2.0.0 下载包中。
+v2.1.0 新增 Burp 专用页面与 `burp-readonly` AI 工具范围，通过内置 HTTP+SSE 客户端直连官方扩展，无需代理 JAR。原有 stdio 配置仍可使用。详见 [Burp 联动说明](BURP_WORKFLOW.md)；此适配随 v2.1.0 正式版提供。
 
-- 协议实现固定在 **2025-11-25**，协商兼容 `2025-06-18`、`2025-03-26`；stdio 与主分支新增的 SSE 客户端额外接受 `2024-11-05`。不声称实现后续修订。
+- 协议实现固定在 **2025-11-25**，协商兼容 `2025-06-18`、`2025-03-26`；stdio 与SSE 客户端额外接受 `2024-11-05`。不声称实现后续修订。
 - 本机服务端为无会话的 Streamable HTTP JSON 响应；GET/DELETE 返回 405，不提供独立 SSE 订阅流。
 - 外部 HTTP 客户端支持 JSON/SSE 响应、初始化返回的会话 ID、版本请求头；工具目录需手动刷新。会话过期后需重新连接，不会自动重试可能产生副作用的调用。
 - 当前实现 tools；不提供 resources、prompts、sampling、elicitation、OAuth 或无 GUI 启动的服务模式。旧版 HTTP+SSE 仅作为主分支客户端选项提供，不改变 JADX 共享服务端的传输方式。

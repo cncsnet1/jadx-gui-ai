@@ -28,8 +28,11 @@ import jadx.gui.ai.AiText;
 /** Local, bounded read operations shared by interactive investigation and MCP. */
 public final class LocalAnalysisTools {
 	public static final Set<String> OPERATIONS = Set.of("inspect_symbol", "find_references", "trace_calls", "search_artifacts",
-			"inspect_api", "read_evidence");
+			"inspect_api", "read_evidence", "read_resource");
 	private final JadxDecompiler decompiler;
+	private AnalysisReport resourceReport;
+	private InvestigationRun resourceRun;
+	private List<FrameworkResourceReader.Entry> resourceCatalog = List.of();
 
 	public LocalAnalysisTools(JadxDecompiler decompiler) {
 		this.decompiler = decompiler;
@@ -86,9 +89,8 @@ public final class LocalAnalysisTools {
 			}
 			body = false;
 		}
-		String clean = AnalysisRedactor.redact(text);
 		return new Source(new AiEvidence(ref, ref + (body ? " [definition]" : " [declaration/source]"),
-				AiCodeChunks.prefix(clean, 6000), AiEvidence.fingerprint(text), clean.length() > 6000), body);
+				AiCodeChunks.prefix(text, 6000), AiEvidence.fingerprint(text), text.length() > 6000), body);
 	}
 
 	public List<JadxNodeRef> references(JadxNodeRef ref, AiCancellation token) throws InterruptedException {
@@ -164,6 +166,23 @@ public final class LocalAnalysisTools {
 			summary = search(query, run, report, token);
 			retained.add(run.retain(operation, new AiEvidence(null, "Search: " + query, AiCodeChunks.prefix(summary, 6000),
 					AiEvidence.fingerprint(summary), summary.length() > 6000), List.of(), false, Set.of()));
+		} else if (operation.equals("read_resource")) {
+			FrameworkResourceReader.Page page = FrameworkResourceReader.read(resources(report, run), target, token);
+			Set<String> owners = new LinkedHashSet<>();
+			for (String id : run.getSelected()) {
+				if (sources(report, id).stream()
+						.anyMatch(e -> sameResource(e.getTitle(), page.evidence.getTitle()))) {
+					owners.add(id);
+				}
+			}
+			String id = run.retain(operation, page.evidence, List.of(), false, owners);
+			retained.add(id);
+			summary = id + " | " + page.evidence.getTitle()
+					+ (page.decodedText
+							? "\nDecoded UTF-8 source; offset is measured in UTF-16 characters. "
+							: "\nFormat inspection only. ")
+					+ (page.next.isEmpty() ? "No next page within the read limit. " : "Next target: " + page.next + ". ")
+					+ "Excerpt only; reading source does not execute it.\n" + page.evidence.getCode();
 		} else if (operation.equals("read_evidence")) {
 			EvidenceStore.Entry entry = run.getEvidence().get(target);
 			summary = entry.getSource().getCode();
@@ -232,17 +251,55 @@ public final class LocalAnalysisTools {
 		}
 		String needle = query.toLowerCase(Locale.ROOT);
 		List<String> hits = new ArrayList<>();
+		List<FrameworkResourceReader.Entry> resourceHits =
+				FrameworkResourceReader.search(decompiler, resources(report, run), query, 20, token);
+		run.rememberResources(resourceCatalog.stream().map(entry -> entry.title).toList());
+		// Leave room for source observations even when many filenames match the same word.
+		for (FrameworkResourceReader.Entry entry : resourceHits.stream().limit(6).toList()) {
+			hits.add(entry.id + " | text resource | " + entry.title);
+		}
 		List<AnalysisFinding> inventory = new ArrayList<>(report.getFindings());
 		report.getApis().forEach(api -> inventory.add(api.asFinding()));
-		for (AnalysisFinding lead : inventory) {
+		inventory.addAll(ProfileLead.candidates(report));
+		List<AiEvidence> anchors = InvestigationScope.anchors(report, run);
+		List<AnalysisFinding> ranked = EvidenceTriage.ranked(report, run.getGoal(), inventory);
+		ranked.sort(java.util.Comparator.comparingInt(lead -> run.getSelected().contains(lead.getId()) ? 0
+				: InvestigationScope.related(InvestigationScope.sources(report, lead.getId()), anchors) ? 1 : 2));
+		for (AnalysisFinding lead : ranked) {
 			token.check();
-			if ((lead.getValue() + ' ' + lead.getEvidence().get(0).getTitle()).toLowerCase(Locale.ROOT).contains(needle)) {
+			if (hits.size() >= 20) {
+				break;
+			}
+			if ((lead.getValue() + ' ' + lead.getEvidence().get(0).getTitle()
+					+ (lead.getKind() == AnalysisFinding.Kind.APK_STRUCTURE || lead.getKind() == AnalysisFinding.Kind.FRAMEWORK_CODE
+							? ' ' + lead.getEvidence().get(0).getCode()
+							: ""))
+									.toLowerCase(Locale.ROOT).contains(needle)) {
 				AiEvidence source = lead.getEvidence().get(0);
-				String node = run.register(source.getNode(), run.getSelected().contains(lead.getId()) ? Set.of(lead.getId()) : Set.of());
+				Set<String> owners = run.getSelected().contains(lead.getId()) ? Set.of(lead.getId()) : Set.of();
+				String node = source.getNode() == null
+						? run.retain("search_artifacts", source, List.of(), false, owners)
+						: run.register(source.getNode(), owners);
 				hits.add(lead.getId() + " | " + node + " | " + AiCodeChunks.prefix(source.getTitle(), 200));
 			}
 			if (hits.size() >= 20) {
 				break;
+			}
+		}
+		for (FrameworkResourceReader.Entry entry : resourceHits.stream().skip(6).toList()) {
+			if (hits.size() >= 20) {
+				break;
+			}
+			hits.add(entry.id + " | text resource | " + entry.title);
+		}
+		for (AiEvidence source : report.getProfile().getEvidence()) {
+			token.check();
+			if (hits.size() >= 20) {
+				break;
+			}
+			if ((source.getTitle() + ' ' + source.getCode()).toLowerCase(Locale.ROOT).contains(needle)) {
+				String id = run.retain("search_artifacts", source, List.of(), false, Set.of());
+				hits.add(id + " | APK structure | " + AiCodeChunks.prefix(source.getTitle(), 200));
 			}
 		}
 		int visited = 0;
@@ -255,22 +312,90 @@ public final class LocalAnalysisTools {
 				hits.add(run.register(JadxNodeRef.forCls(cls), Set.of()) + " | " + AiCodeChunks.prefix(cls.getRawName(), 200));
 			}
 		}
-		return String.join("\n", hits) + "\nCoverage: existing scan leads and class names; at most 20 matches / 50000 classes. "
+		return String.join("\n", hits)
+				+ "\nCoverage: loaded text resource names, existing scan leads, APK structure and class names; at most 20 matches / 50000 classes. "
+				+ "Resource reads use a registry capped at 384 entries. "
 				+ "Not a full source search. No matches does not establish absence.";
 	}
 
 	public String catalog(InvestigationRun run, AnalysisReport report) {
-		StringBuilder out = new StringBuilder("Known nodes:\n");
+		boolean focused = run.getFocusId() != null && !run.getFocusId().isBlank();
+		List<AiEvidence> anchors = InvestigationScope.anchors(report, run);
+		StringBuilder out = new StringBuilder("Prioritized observations in the current scope (not proof of runtime behavior):\n");
+		for (AnalysisFinding lead : InvestigationScope.leads(report, run)) {
+			out.append(lead.getId()).append(" | ").append(AiCodeChunks.prefix(lead.getValue(), 200)).append(" | ")
+					.append(EvidenceTriage.assess(report, lead).getTier()).append('\n');
+		}
+		out.append(
+				"Related here means the same observed source/class or a statically discovered reference, not established data flow. "
+						+ "Background candidates remain searchable; use a targeted search to answer a specific missing link.\n");
+		out.append("Framework routes in scope:\n");
+		for (FrameworkAnalysis.Route route : report.getFrameworkAnalysis().getRoutes()) {
+			if (!focused || InvestigationScope.related(route.getEvidence(), anchors)
+					|| route.getFindings().stream().anyMatch(f -> InvestigationScope.related(f.getEvidence(), anchors))) {
+				out.append(route.getName()).append(" | ").append(route.getStatus()).append(" | ")
+						.append(AiCodeChunks.prefix(route.getNextAction(), 300)).append('\n');
+			}
+		}
+		if (report.getFrameworkAnalysis().getRoutes().isEmpty()) {
+			out.append(report.getFrameworkAnalysis().getFramework()).append('\n');
+		}
+		out.append("Local framework findings (read their sources before making deeper claims):\n");
+		for (FrameworkAnalysis.Finding finding : report.getFrameworkAnalysis().getFindings().stream()
+				.filter(f -> !focused || InvestigationScope.related(f.getEvidence(), anchors)).limit(6).toList()) {
+			out.append(AiCodeChunks.prefix(finding.getTitle(), 120)).append(" | ")
+					.append(AiCodeChunks.prefix(finding.getTask(), 240)).append('\n');
+		}
+		out.append(
+				"Readable project resources (read_resource; optional @characterOffset; each page <=6000 chars; names may be shortened):\n");
+		resources(report, run).stream().filter(e -> !focused || anchors.stream()
+				.anyMatch(anchor -> InvestigationScope.resourceTitle(anchor.getTitle()).equals(e.title)))
+				.limit(12).forEach(e -> out.append(e.id).append(" | ")
+						.append(AiCodeChunks.prefix(e.title, 200)).append('\n'));
+		out.append("Catalog is a bounded selection. Search artifact/resource names for more entries.\n");
+		out.append("Known nodes:\n");
 		int shown = 0;
 		for (var node : run.getNodes().entrySet()) {
-			if (++shown > 80 || out.length() > 12_000) {
+			if (++shown > 80 || out.length() > 10_000) {
 				break;
 			}
 			out.append(node.getKey()).append(" | ").append(AiCodeChunks.prefix(node.getValue().toString(), 200)).append('\n');
 		}
 		out.append("Selected APIs:\n");
 		report.getApis().stream().filter(e -> run.getSelected().contains(e.getId())).limit(6)
-				.forEach(e -> out.append(e.getId()).append(" | ").append(e.getMethod()).append(' ').append(e.getAddress()).append('\n'));
+				.forEach(e -> out.append(e.getId()).append(" | ").append(e.getMethod()).append(' ')
+						.append(AiCodeChunks.prefix(e.getAddress(), 240)).append('\n'));
 		return out.toString();
+	}
+
+	private List<FrameworkResourceReader.Entry> resources(AnalysisReport report, InvestigationRun run) {
+		if (resourceReport != report || resourceRun != run) {
+			List<AiEvidence> selectedSources = new ArrayList<>();
+			for (String id : run.getSelected()) {
+				selectedSources.addAll(sources(report, id));
+			}
+			// Re-register previously read resources when a saved investigation resumes.
+			run.getEvidence().entries().forEach(entry -> selectedSources.add(entry.getSource()));
+			resourceCatalog = FrameworkResourceReader.catalog(decompiler, report, selectedSources);
+			FrameworkResourceReader.restore(decompiler, resourceCatalog, run.getResourceTitles());
+			run.rememberResources(resourceCatalog.stream().map(entry -> entry.title).toList());
+			resourceReport = report;
+			resourceRun = run;
+		}
+		return resourceCatalog;
+	}
+
+	private static List<AiEvidence> sources(AnalysisReport report, String id) {
+		ApiEndpoint api = report.getApis().stream().filter(endpoint -> endpoint.getId().equals(id)).findFirst().orElse(null);
+		if (api != null) {
+			return api.getSources();
+		}
+		AnalysisFinding finding = InvestigationService.find(report, id);
+		return finding == null ? List.of() : finding.getEvidence();
+	}
+
+	private static boolean sameResource(String first, String second) {
+		return first.replaceFirst(":\\d+(?::\\d+)?(?: ·.*)?$", "")
+				.equals(second.replaceFirst(":\\d+(?::\\d+)?(?: ·.*)?$", ""));
 	}
 }

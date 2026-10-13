@@ -61,7 +61,7 @@ class ApiTrafficMatcherTest {
 	}
 
 	@Test
-	void projectRoundTripAndExportPersistMetadataWithoutRawSecretsOrPathValues() {
+	void projectRoundTripAndExportPersistOriginalRequestAndResponseValues() {
 		ApiEndpoint api = endpoint("GET", "https://api.test/users/{id}");
 		AnalysisReport report = new AnalysisReport();
 		report.setFingerprint("fixture-fingerprint");
@@ -74,11 +74,14 @@ class ApiTrafficMatcherTest {
 		report.putTrafficEvidence(api, evidence);
 		assertThat(report.getTrafficEvidence()).hasSize(1);
 		String json = defaultGsonBuilder().create().toJson(report);
-		assertThat(json).doesNotContain("PRIVATE_", "rawRequest", "rawResponse").contains("authorization", "cookie", "token");
+		assertThat(json).contains("PRIVATE_USER_ID", "PRIVATE_QUERY", "PRIVATE_HEADER", "PRIVATE_COOKIE", "PRIVATE_RESPONSE_BODY",
+				"rawRequest", "rawResponse", "authorization", "cookie", "token");
 		AnalysisReport restored = defaultGsonBuilder().create().fromJson(json, AnalysisReport.class);
 		assertThat(restored.getTrafficEvidence()).hasSize(1);
 		assertThat(restored.getTrafficEvidence().get(0).belongsTo(restored.getApis().get(0))).isTrue();
-		assertThat(restored.markdown()).doesNotContain("PRIVATE_").contains("/users/{id}");
+		assertThat(restored.markdown()).contains("PRIVATE_QUERY", "PRIVATE_HEADER", "PRIVATE_RESPONSE_BODY", "/users/{id}");
+		assertThat(restored.getTrafficEvidence().get(0).getRawRequest()).isEqualTo(exchange.rawRequest());
+		assertThat(restored.getTrafficEvidence().get(0).getRawResponse()).isEqualTo(exchange.rawResponse());
 		assertThat(restored.trafficEvidenceExport().get(0).get("endpointId")).isEqualTo(restored.getApis().get(0).getId());
 		AnalysisReport differentInput = new AnalysisReport();
 		differentInput.setFingerprint("other-input");
@@ -93,6 +96,19 @@ class ApiTrafficMatcherTest {
 		assertThat(rescan.getTrafficEvidence()).hasSize(1);
 		assertThat(rescan.getTrafficEvidence().get(0).belongsTo(rescan.getApis().get(1))).isTrue();
 		assertThatThrownBy(() -> report.putTrafficEvidence(api.copy(), evidence)).isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	void originalQueryAndUrlCredentialsDoNotChangeHostPathCorrelation() {
+		ApiEndpoint api = endpoint("GET", "https://user:pass@api.test/v1/users/{id}?token=static-value#fragment");
+		ApiTrafficMatcher.Match match = ApiTrafficMatcher.match(api, null,
+				request("GET", "api.test", "/v1/users/42?token=different-runtime-value"));
+		assertThat(match).isNotNull();
+		assertThat(match.route()).isEqualTo("/v1/users/{id}");
+		assertThat(ApiTrafficMatcher.match(api, null, request("GET", "other.test", "/v1/users/42"))).isNull();
+		assertThat(api.getAddress()).contains("user:pass", "token=static-value", "#fragment");
+		assertThat(ApiTrafficMatcher.match(endpoint("GET", "HTTPS://user:pass@api.test/v1/users/{id}?token=static"), null,
+				request("GET", "api.test", "/v1/users/42?token=runtime"))).isNotNull();
 	}
 
 	@Test

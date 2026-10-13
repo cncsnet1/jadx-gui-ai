@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/cncsnet1/jadx-gui-ai/releases/latest"><img src="https://img.shields.io/badge/release-v2.0.0-38b2ac?style=flat-square" alt="v2.0.0"></a>
+  <a href="https://github.com/cncsnet1/jadx-gui-ai/releases/latest"><img src="https://img.shields.io/badge/release-v2.1.0-38b2ac?style=flat-square" alt="v2.1.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-64748b?style=flat-square" alt="Apache-2.0"></a>
   <img src="https://img.shields.io/badge/desktop-Windows%20%7C%20macOS%20%7C%20Linux-6085cc?style=flat-square" alt="Windows, macOS, Linux">
   <img src="https://img.shields.io/badge/AI-cloud%20%2B%20local-8b72cf?style=flat-square" alt="Cloud and local models">
@@ -28,13 +28,15 @@
 
 You do not need to know which class to search first. Start with a question: **What is in this app? How does login work? Which APIs and potentially sensitive constants deserve a closer look?**
 
-**v2.0.0 is a stable release.** Opening an APK automatically creates a local application report. Move between the report, API map, and investigation history; trace API callers and supported Retrofit / OkHttp client configurations; then let a model read relevant code in bounded steps. Investigations retain their evidence and can be saved and resumed.
+**v2.1.0 is a stable release.** Opening an APK creates a local workbench with **Application overview / APIs & communication / Key code**. Identify protection and technology artifacts, follow coexisting routes, and inspect request, authentication, crypto and native evidence. APIs with request evidence appear first; background candidates remain recoverable and original values are preserved. Let the Agent continue from a selected source with bounded local tools and resumable evidence. See the [release notes (Chinese)](docs/releases/v2.1.0.md).
 
-> **On the development branch, not in the v2.0.0 downloads:** install and enable the official MCP Server extension in Burp, then click **Connect Burp** in the API map to use the default local address. Successful settings are saved automatically; no proxy JAR, Java selection, or launch arguments are needed. The traffic view supports scoped history reads, candidate source correlations, saved metadata, and staging requests in Repeater. Protocol fixtures and Windows UI workflows have been tested; end-to-end testing with the real Burp extension is still pending. See the [Burp workflow guide (Chinese)](docs/BURP_WORKFLOW.md).
+> **Burp integration:** install and enable the official MCP Server extension in Burp, then click **Connect Burp** in APIs & communication to use the default local address. Successful settings are saved automatically; no proxy JAR, Java selection, or launch arguments are needed. The traffic view supports scoped history reads, candidate source correlations, saved metadata, and staging requests in Repeater. Protocol fixtures and Windows UI workflows have been tested; end-to-end testing with the real Burp extension is still pending. See the [Burp workflow guide (Chinese)](docs/BURP_WORKFLOW.md).
 
-**Agent upgrade (development preview):** A goal-driven task workspace with presets, an adaptive public plan, native local tool calls, evidence links, and saved follow-up instructions. Stop and continue with retained observations. Reuses your configured model connection without a separate Agent runtime; compatible endpoints can fall back to structured JSON. See the [Agent workspace guide (Chinese)](docs/AGENT_WORKSPACE.md).
+**Agent tasks:** A goal-driven task workspace with presets, an adaptive public plan, native local tool calls, evidence links, and saved follow-up instructions. Stop and continue with retained observations. Reuses your configured model connection without a separate Agent runtime; compatible endpoints can fall back to structured JSON. See the [Agent workspace guide (Chinese)](docs/AGENT_WORKSPACE.md).
 
-The development Windows bundle also fixes startup from Chinese installation paths under an English system locale. Open the bundled EXE without changing system locale or configuring Java. The new launcher targets Windows 10 1903+ / Windows 11; see the [v2.1.0-dev preview notes (Chinese)](docs/releases/v2.1.0-dev.md).
+**APK workbench:** Three primary views connect **Application overview / APIs & communication / Key code**. Local analysis identifies protection indicators, framework artifacts and DEX / JS / native visibility. Detected uni-app, React Native, Cordova / WebView, Flutter, Android and Unity artifacts create separate analysis routes that can coexist, each with its own coverage and missing evidence. The communication view connects callers, parameters, crypto clues, network configuration and observed traffic, with uni.request / fetch / axios extraction, ELF inventory and the read-only MCP `get_apk_profile` tool. The API list prioritizes request evidence and lets you restore background candidates and inspect the sorting reasons; unknown ownership does not imply low risk. The Agent can follow actual sources to read more script content. Displays, saved evidence and full API exports preserve original values. These local features require no Python, Node, Frida or Ghidra installation. Automatic unpacking, Hermes / Dart AOT / IL2CPP decoding and native decompilation are not implemented. See the [APK workbench guide and research notes (Chinese)](docs/APK_WORKBENCH.md).
+
+The v2.1.0 Windows bundle fixes startup from Chinese installation paths under an English system locale. Open the bundled EXE without changing system locale or configuring Java. The new launcher targets Windows 10 1903+ / Windows 11; see the [v2.1.0 release notes (Chinese)](docs/releases/v2.1.0.md).
 
 Local reports, API discovery, and call paths work **without a model**. The desktop packages include JADX and Java; basic analysis does not require Python, Node, or REA. AI features use a model service that you configure separately.
 
@@ -46,16 +48,16 @@ Static findings are investigation leads. They do not establish that a vulnerabil
 
 ## Download and run
 
-Download the appropriate **v2.0.0** package from the [Latest Release](https://github.com/cncsnet1/jadx-gui-ai/releases/latest). Extract the complete archive before launching.
+Download the appropriate **v2.1.0** package from the [Latest Release](https://github.com/cncsnet1/jadx-gui-ai/releases/latest). Extract the complete archive before launching.
 
 | Platform | Archive | Launch |
 | --- | --- | --- |
-| Windows x64 | `jadx-gui-ai-2.0.0-windows-x64.zip` | Double-click `jadx-gui-ai.exe` |
-| macOS · Apple Silicon | `jadx-gui-ai-2.0.0-macos-arm64.zip` | Open `JADX GUI AI.app` |
-| macOS · Intel | `jadx-gui-ai-2.0.0-macos-x64.zip` | Open `JADX GUI AI.app` |
-| Linux x64 | `jadx-gui-ai-2.0.0-linux-x64.tar.gz` | Run `./bin/jadx-gui-ai` |
-| Linux ARM64 | `jadx-gui-ai-2.0.0-linux-arm64.tar.gz` | Run `./bin/jadx-gui-ai` |
-| Portable · bring your own Java | `jadx-gui-ai-2.0.0-portable.zip` | Run `bin/jadx-gui-ai` or `bin\jadx-gui-ai.bat` |
+| Windows x64 | `jadx-gui-ai-2.1.0-windows-x64.zip` | Double-click `jadx-gui-ai.exe` |
+| macOS · Apple Silicon | `jadx-gui-ai-2.1.0-macos-arm64.zip` | Open `JADX GUI AI.app` |
+| macOS · Intel | `jadx-gui-ai-2.1.0-macos-x64.zip` | Open `JADX GUI AI.app` |
+| Linux x64 | `jadx-gui-ai-2.1.0-linux-x64.tar.gz` | Run `./bin/jadx-gui-ai` |
+| Linux ARM64 | `jadx-gui-ai-2.1.0-linux-arm64.tar.gz` | Run `./bin/jadx-gui-ai` |
+| Portable · bring your own Java | `jadx-gui-ai-2.1.0-portable.zip` | Run `bin/jadx-gui-ai` or `bin\jadx-gui-ai.bat` |
 
 The five platform packages bundle **Eclipse Temurin 21**. The portable package requires a 64-bit Java 17+ installation; Java 21 is recommended. Linux requires a graphical desktop and a glibc-based distribution. The Windows executable and macOS app are unsigned; the macOS app is also not notarized. Follow the operating system's prompts when opening it for the first time.
 
@@ -63,15 +65,15 @@ The Windows package has been tested by launching the application. macOS and Linu
 
 The original JADX CLI is included as `bin/jadx`, or `bin\jadx.bat` on Windows. Release assets include `SHA256SUMS.txt` and `release-manifest.json` to check the downloads, source commit, and bundled runtime.
 
-> **Plugin recovery on the development branch:** invalid installed-plugin records are skipped automatically. Malformed registry JSON is preserved in a complete `.bak` file before loading continues with bundled and drop-in plugins. External plugins from the damaged registry are temporarily disabled and can be reinstalled; the backup location is logged. No manual configuration editing is needed for these cases. This fix is not in the v2.0.0 downloads.
+> **Automatic plugin recovery in v2.1.0:** invalid installed-plugin records are skipped automatically. Malformed registry JSON is preserved in a complete `.bak` file before loading continues with bundled and drop-in plugins. External plugins from the damaged registry are temporarily disabled and can be reinstalled; the backup location is logged. No manual configuration editing is needed for these cases.
 
-**Null pointer while initializing plugins in v2.0.0?** A stack trace through `JadxPluginsTools.getEnabledPluginJars` → `Path.resolve` usually means an installed-plugin entry has no `jar` filename; this particular exception is not caused by Java 8. As a temporary workaround, close the app, back up and rename `%APPDATA%\skylot\jadx\config\plugins\plugins.json`, then restart and reinstall any external plugins you need. If `JADX_CONFIG_DIR` is set, use its `plugins\plugins.json` instead.
+**Upgrading from v2.0.0?** The `getEnabledPluginJars` → `Path.resolve` null pointer caused by invalid plugin entries is handled automatically in v2.1.0. This particular exception is not caused by Java 8.
 
 ## Your first analysis
 
 1. **Open a file.** Drop an APK, DEX, JAR, or CLASS onto the start page. After loading, the app opens the analysis workspace and generates a local report.
 2. **Read the report.** Explore APIs, entry points, potentially sensitive constants, configuration clues, source locations, and gaps in coverage. No model connection is needed.
-3. **Trace an API.** Select an API declaration or request-construction entry point in the API map. Inspect callers, client configuration, interceptors, and unresolved relationships.
+3. **Trace an API.** Select an API declaration or request-construction entry point in APIs & communication. Inspect callers, client configuration, interceptors, and unresolved relationships.
 4. **Ask AI to continue.** Configure a Chat Completions-compatible connection, then choose a goal or lead. The investigation reads related code within a fixed budget and keeps its steps and evidence. You can stop and resume it.
 5. **Save or export.** Save a `.jadx` project, or export the report, API inventory, and investigation material. Record manual verification separately when you are ready to assess a finding.
 
@@ -99,11 +101,15 @@ The screenshots below come from actual Swing components using compiled demonstra
 
 ### A report comes first
 
-The local report highlights useful leads and missing evidence. Three primary views connect the application report, API map, and investigation history. AI investigations retain source evidence, steps, open questions, stop reasons, and the last complete answer.
+The local overview identifies protection and technology artifacts. Three primary views connect application structure, APIs and communication, and key code. Switch between detected technology routes and inspect their coverage. AI investigations retain their public plan, source evidence, steps, open questions, and stop reasons.
 
-![Application report and investigation entry points](docs/images/application-report-graphite.png)
+![Application overview and technology routes](docs/images/apk-workbench-overview.png)
 
-[Light theme](docs/images/application-report-light.png) · [Investigation history](docs/images/investigation-history-graphite.png). These screenshots show the v2.0.0 workflow.
+![APIs and communication with recoverable background candidates](docs/images/apk-workbench-communication.png)
+
+![Key code filtered by technology route](docs/images/apk-workbench-framework.png)
+
+[Light theme](docs/images/apk-workbench-code.png) · [Agent guide (Chinese)](docs/AGENT_WORKSPACE.md). These screenshots are rendered from actual Swing components with local synthetic inputs; opening and inspecting local results does not invoke a model. The call-path and source-tool screenshots below are retained from earlier releases.
 
 ### Follow an API to its callers
 
@@ -119,7 +125,7 @@ Client analysis handles supported straight-line Retrofit / OkHttp construction p
 
 The API inventory separates **interface declarations, address clues, and request-construction entry points**. Search hosts, paths, HTTP methods, parameters, and source locations. Retrofit extraction covers Path / Query / Header / Body, form fields, and upload fields; OkHttp and HttpURLConnection provide construction entry points to investigate further.
 
-Relative paths without a resolved base URL stay marked as unresolved. An absent authentication header is not treated as proof of anonymous access. Inventories support source navigation, further AI investigation, project persistence, and redacted JSON / Markdown exports.
+Relative paths without a resolved base URL stay marked as unresolved. An absent authentication header is not treated as proof of anonymous access. Inventories support source navigation, further AI investigation, project persistence, and JSON / Markdown exports preserving original values.
 
 AI can also organize the evidence it has read into candidate starting points, explaining prerequisites, existing protections, investigation cost, missing evidence, and next steps. These rankings are model inferences, not attack success rates. General investigation guides suggest a search order; they are distinct from the bytecode-backed API call paths above.
 
@@ -148,7 +154,7 @@ Open the **MCP connection center** from the Tools menu to use either mode:
 - **Share the current project:** external AI clients can use the local read-only tools to inspect classes, source, references, and call relationships. `trace_calls` and `inspect_api` expose the same bounded analysis used by the desktop workspace.
 - **Connect external tools:** the built-in assistant can connect to stdio or HTTP MCP servers. Each tool invocation requires confirmation. Large tool catalogs and results support discovery and session-local paging.
 
-The `rea-static` filter helps select relevant tools when connecting a separately supplied REA service. This app does not install or automatically start REA, and native REA engine integration is not part of v2.0.0. See the [MCP guide (Chinese)](docs/MCP.md) for setup and supported tools.
+The `rea-static` filter helps select relevant tools when connecting a separately supplied REA service. This app does not install or automatically start REA, and native REA engine integration is not implemented. See the [MCP guide (Chinese)](docs/MCP.md) for setup and supported tools.
 
 ## Capabilities and limits
 
@@ -156,7 +162,7 @@ The `rea-static` filter helps select relevant tools when connecting a separately
 | --- | --- |
 | Local discovery | Bytecode and resource scanning with deduplication, classification, source locations, and coverage limits |
 | API call paths | Up to 4 caller levels, 48 methods, and 96 relationships; evidence and unresolved boundaries remain visible |
-| AI investigations | Up to 3 starting leads, 6 planning rounds, and 12 local reads per run; supports cancellation, saving, and continuation |
+| AI investigations | Up to 3 starting leads, 10 planning rounds, and 12 local reads per run; supports cancellation, saving, and continuation |
 | Saved investigations | Up to 24 investigations per project and 96 evidence entries per investigation; restoration checks input identity and engine configuration |
 | Source context | Current method, selection, or class; up to 12,000 characters of primary source plus up to 3 callers at 3,000 characters each; truncation is visible |
 | Connections | Separate services and models, per-task assignments, environment-variable keys, and response diagnostics |
@@ -204,10 +210,12 @@ This README and the [Chinese README](README.md) cover installation, configuratio
 | [Application investigation](docs/ASSESSMENT_WORKFLOW.md) | Local discovery, investigation routes, and manual review |
 | [API inventory and call paths](docs/API_INVENTORY.md) | Extraction coverage, client relationships, and evidence |
 | [MCP](docs/MCP.md) | Project sharing and external tool connections |
-| [Burp workflow](docs/BURP_WORKFLOW.md) | Development feature: traffic correlation, evidence, and Repeater staging |
+| [APK workbench](docs/APK_WORKBENCH.md) | Technology routes, noise reduction, coverage and research notes |
+| [Agent workspace](docs/AGENT_WORKSPACE.md) | Plans, local tools, evidence and task continuation |
+| [Burp workflow](docs/BURP_WORKFLOW.md) | Traffic correlation, evidence, and Repeater staging |
 | [Java deobfuscation](docs/JAVA_DEOBFUSCATION.md) | Optional preprocessing and fallback behavior |
 | [Upstream and REA design](docs/UPSTREAM_REA_DESIGN.md) | Implemented scope, borrowed ideas, and remaining work |
-| [v2.0.0 release notes](docs/releases/v2.0.0.md) | Changes, validation, and platform coverage |
+| [v2.1.0 release notes](docs/releases/v2.1.0.md) | Changes, validation, and platform coverage |
 | [Release guide](docs/RELEASING.md) | Packaging and publishing |
 
 ## Next steps and contributions

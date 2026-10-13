@@ -8,10 +8,7 @@ import jadx.gui.ai.AiEvidence;
 import jadx.gui.burp.BurpExchange;
 import jadx.gui.burp.BurpText;
 
-/**
- * Persisted metadata only. No request/response values, cookies, bodies, notes, or dynamic path
- * values.
- */
+/** Persisted, bounded HTTP observations including original request and response values. */
 public final class ApiTrafficEvidence {
 	private String endpointKey;
 	private String sampleKey;
@@ -24,6 +21,8 @@ public final class ApiTrafficEvidence {
 	private boolean truncated;
 	private List<String> queryNames;
 	private List<String> headerNames;
+	private String rawRequest = "";
+	private String rawResponse = "";
 
 	private ApiTrafficEvidence() {
 	}
@@ -32,7 +31,7 @@ public final class ApiTrafficEvidence {
 		endpointKey = key(endpoint);
 		sampleKey = AiEvidence.fingerprint(exchange.rawRequest() + '\0' + exchange.rawResponse());
 		origin = scope.toString();
-		route = AnalysisRedactor.redact(match.route());
+		route = ApiEndpoint.boundedText(match.route(), 2000);
 		method = exchange.method();
 		status = exchange.status();
 		collectedAt = exchange.collectedAt();
@@ -40,6 +39,17 @@ public final class ApiTrafficEvidence {
 		truncated = exchange.truncated();
 		queryNames = List.copyOf(exchange.queryNames());
 		headerNames = List.copyOf(exchange.headerNames());
+		rawRequest = ApiEndpoint.boundedText(exchange.rawRequest(), 32_000);
+		rawResponse = ApiEndpoint.boundedText(exchange.rawResponse(), 64_000);
+		truncated |= exchange.rawRequest().length() > rawRequest.length() || exchange.rawResponse().length() > rawResponse.length();
+	}
+
+	public String getRawRequest() {
+		return rawRequest;
+	}
+
+	public String getRawResponse() {
+		return rawResponse;
 	}
 
 	static String key(ApiEndpoint endpoint) {
@@ -64,6 +74,8 @@ public final class ApiTrafficEvidence {
 				+ BurpText.str("query_names") + ": " + String.join(", ", queryNames) + '\n'
 				+ BurpText.str("header_names") + ": " + String.join(", ", headerNames) + '\n'
 				+ BurpText.str("collected") + ": " + Instant.ofEpochMilli(collectedAt) + '\n'
-				+ (truncated ? BurpText.str("truncated") + '\n' : "") + BurpText.str("evidence_boundary");
+				+ (truncated ? BurpText.str("truncated") + '\n' : "") + BurpText.str("evidence_boundary")
+				+ (rawRequest.isEmpty() ? "" : "\n\nHTTP request:\n" + rawRequest)
+				+ (rawResponse.isEmpty() ? "" : "\n\nHTTP response:\n" + rawResponse);
 	}
 }

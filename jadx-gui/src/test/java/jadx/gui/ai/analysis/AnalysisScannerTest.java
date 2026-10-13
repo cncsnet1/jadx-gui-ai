@@ -57,11 +57,13 @@ class AnalysisScannerTest {
 					});
 			assertThat(calls.get()).isEqualTo(2);
 			assertThat(answer.getEvidence()).anyMatch(e -> e.getTitle().contains("caller depth") && e.getCode().contains("submitLogin"));
-			assertThat(requests.toString()).doesNotContain("SAMPLE_PRIVATE_PASSWORD_42", "private-query-token", "fixture-local-secret");
+			assertThat(requests.toString()).contains("private-query-token", "fixture-local-secret");
+			assertThat(answer.getEvidence()).anyMatch(e -> e.getCode().contains("fixture-local-secret")
+					&& e.getCode().contains("private-query-token"));
 			assertThat(answer.getEvidence().size()).isLessThanOrEqualTo(AnalysisInvestigator.MAX_SOURCES);
 			assertThat(answer.getEvidence().stream().mapToInt(e -> e.getCode().length()).sum())
 					.isLessThanOrEqualTo(AnalysisInvestigator.MAX_CONTEXT);
-			assertThat(report.markdown()).doesNotContain("SAMPLE_PRIVATE_PASSWORD_42", "private-query-token");
+			assertThat(report.markdown()).contains("SAMPLE_PRIVATE_PASSWORD_42", "private-query-token", "fixture-local-secret");
 		}
 	}
 
@@ -72,7 +74,7 @@ class AnalysisScannerTest {
 			});
 			AnalysisFinding login = report.getFindings().stream().filter(f -> f.getKind() == Kind.LOGIN
 					&& f.getEvidence().get(0).getTitle().contains("submitLogin")).findFirst().orElseThrow();
-			AnalysisFinding shared = new AnalysisFinding("F999", Kind.CREDENTIAL, "[redacted]", login.getEvidence().get(0));
+			AnalysisFinding shared = new AnalysisFinding("F999", Kind.CREDENTIAL, "fixture-local-secret", login.getEvidence().get(0));
 			AnalysisInvestigator collector = new AnalysisInvestigator(decompiler, null);
 			var sources = collector.collectContext(List.of(login, shared), false, new AiCancellation(), ignored -> {
 			});
@@ -88,8 +90,9 @@ class AnalysisScannerTest {
 			assertThat(focused.evidence.get(Integer.parseInt(sourceId.substring(1)) - 1).getCode()).contains(quote);
 			AiClient model = (name, messages, temperature, tokens, token, output) -> {
 				String sent = messages.toString();
-				assertThat(sent).contains("Local source ownership", sourceId, login.getId(), "jadx-opportunities")
-						.doesNotContain("jadx-findings", "SAMPLE_PRIVATE_PASSWORD_42", "fixture-local-secret", "private-query-token");
+				assertThat(sent).contains("Local source ownership", sourceId, login.getId(), "jadx-opportunities",
+						"fixture-local-secret", "private-query-token")
+						.doesNotContain("jadx-findings", "SAMPLE_PRIVATE_PASSWORD_42");
 				return OpportunityAnalysisTest.response(OpportunityAnalysisTest.card(login.getId(), sourceId, quote));
 			};
 			AiRecord answer = new AnalysisInvestigator(decompiler, model).investigate(report, AnalysisGoal.EXPLORE, "", login,

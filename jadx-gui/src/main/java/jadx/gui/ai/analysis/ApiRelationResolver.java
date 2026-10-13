@@ -164,7 +164,7 @@ public final class ApiRelationResolver {
 				}
 			}
 			for (Value binding : interpreter.bindings) {
-				String code = AnalysisRedactor.redact(method.toString());
+				String code = method.toString();
 				dossier.add(new ApiDossier.Binding(binding.url, owner + '.' + method.getSignature(), binding.interceptors, ref),
 						new AiEvidence(ref, owner + '.' + method.getSignature() + " [client construction]",
 								AiCodeChunks.prefix(code, 6000), AiEvidence.fingerprint(method.toString()), code.length() > 6000));

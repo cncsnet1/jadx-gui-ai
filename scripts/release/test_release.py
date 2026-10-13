@@ -33,7 +33,8 @@ class ReleaseTests(unittest.TestCase):
                 self.assertIn("app/docs/API_INVENTORY.md", reader.names)
                 self.assertIn("app/docs/UPSTREAM_REA_DESIGN.md", reader.names)
                 self.assertIn("app/docs/ASSESSMENT_WORKFLOW.md", reader.names)
-                self.assertIn("应用调查", reader.read("app/START-HERE.txt").decode("utf-8"))
+                self.assertIn("应用概览、接口与通信、关键代码", reader.read("app/START-HERE.txt").decode("utf-8"))
+                self.assertIn("app/docs/APK_WORKBENCH.md", reader.names)
                 self.assertIn("app/docs/images/workspace-home-graphite.png", reader.names)
                 self.assertIn("app/docs/images/workbench-graphite.png", reader.names)
             finally:

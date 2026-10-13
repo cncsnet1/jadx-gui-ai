@@ -26,15 +26,21 @@ public final class ApiEndpoint {
 		private final String location;
 		private final String name;
 		private final String type;
+		private final String value;
 
 		private Parameter() {
-			this("", "", "");
+			this("", "", "", "");
 		}
 
 		Parameter(String location, String name, String type) {
-			this.location = location;
+			this(location, name, type, "");
+		}
+
+		Parameter(String location, String name, String type, String value) {
+			this.location = label(location);
 			this.name = label(name);
 			this.type = label(type);
+			this.value = boundedText(value, 4096);
 		}
 
 		public String getLocation() {
@@ -49,13 +55,17 @@ public final class ApiEndpoint {
 			return type;
 		}
 
+		public String getValue() {
+			return value;
+		}
+
 		@Override
 		public String toString() {
-			return location + " · " + name + (type.isEmpty() ? "" : " : " + type);
+			return location + " · " + name + (type.isEmpty() ? "" : " : " + type) + (value.isEmpty() ? "" : " = " + value);
 		}
 	}
 
-	private static final Pattern AUTHORITY = Pattern.compile("(?i)^https?://([^/]+)(.*)$");
+	private static final Pattern AUTHORITY = Pattern.compile("(?i)^https?://([^/?#]+)(.*)$");
 	private String id;
 	private Origin origin;
 	private String method;
@@ -75,14 +85,17 @@ public final class ApiEndpoint {
 	ApiEndpoint(Origin origin, String method, String rawAddress, String title, JadxNodeRef ref) {
 		this.origin = origin;
 		this.method = method.matches("[A-Za-z][A-Za-z0-9_-]{0,23}") ? method.toUpperCase(Locale.ROOT) : "";
-		String route = rawAddress.split("#", 2)[0];
+		address = boundedText(rawAddress, 2000).replaceAll("[\\p{Cntrl}]", " ");
+		truncated = rawAddress.length() > 2000;
+		String route = address.split("#", 2)[0];
 		int query = route.indexOf('?');
 		if (query >= 0) {
 			String[] pairs = route.substring(query + 1).split("&", 82);
 			for (String pair : pairs) {
-				String name = pair.split("=", 2)[0];
+				String[] item = pair.split("=", 2);
+				String name = item[0];
 				if (!name.isEmpty()) {
-					parameter("Query (URL)", name, "");
+					parameter("Query (URL)", name, "", item.length > 1 ? item[1] : "");
 				}
 			}
 			route = route.substring(0, query);
@@ -92,32 +105,38 @@ public final class ApiEndpoint {
 			String authority = absolute.group(1);
 			int userInfo = authority.lastIndexOf('@');
 			if (userInfo >= 0) {
+				authHints.add("URL userinfo: " + authority.substring(0, userInfo));
 				authority = authority.substring(userInfo + 1);
-				authHints.add("URL userinfo [redacted]");
 			}
-			host = label(authority.toLowerCase(Locale.ROOT));
-			route = route.substring(0, route.indexOf("://") + 3) + authority + absolute.group(2);
-		}
-		address = AnalysisRedactor.redact(route);
-		if (address.length() > 2000) {
-			address = address.substring(0, 2000);
-			truncated = true;
+			host = boundedText(authority.toLowerCase(Locale.ROOT), 512);
 		}
 		sources.add(new AiEvidence(ref, title, "", "", false));
 		occurrences = 1;
 	}
 
 	static String label(String text) {
-		String clean = text.replaceAll("[\\p{Cntrl}]", " ").replaceAll("[A-Za-z0-9_+/=-]{24,}", "[long literal redacted]");
+		String clean = text.replaceAll("[\\p{Cntrl}]", " ");
 		return clean.length() > 160 ? clean.substring(0, 160) + "…" : clean;
 	}
 
+	static String boundedText(String text, int limit) {
+		String clean = jadx.gui.ai.AiCodeChunks.prefix(text, limit);
+		return clean.replaceAll("[\\p{Cntrl}&&[^\\r\\n\\t]]", " ");
+	}
+
 	void parameter(String location, String name, String type) {
+		parameter(location, name, type, "");
+	}
+
+	void parameter(String location, String name, String type, String value) {
 		if (parameters.size() >= 80) {
 			truncated = true;
 			return;
 		}
-		Parameter param = new Parameter(location, name, type);
+		if (name.length() > 160 || type.length() > 160 || value.length() > 4096) {
+			truncated = true;
+		}
+		Parameter param = new Parameter(location, name, type, value);
 		if (parameters.stream().noneMatch(p -> p.toString().equals(param.toString()))) {
 			parameters.add(param);
 		}
@@ -134,19 +153,16 @@ public final class ApiEndpoint {
 	void header(String declaration) {
 		int colon = declaration.indexOf(':');
 		String name = colon < 0 ? declaration : declaration.substring(0, colon).trim();
-		parameter("Header (static)", name, "");
+		String value = colon < 0 ? "" : declaration.substring(colon + 1).trim();
+		parameter("Header (static)", name, "", value);
 		if (name.equalsIgnoreCase("Authorization") && colon >= 0 && authHints.size() < 12) {
-			String value = declaration.substring(colon + 1).trim();
-			if (value.matches("(?is)Bearer\\s+.*")) {
-				authHints.add("Bearer [redacted]");
-			} else if (value.matches("(?is)Basic\\s+.*")) {
-				authHints.add("Basic [redacted]");
-			}
+			authHints.add(boundedText(value, 4096));
 		}
 	}
 
 	void body(String value) {
-		body = label(value);
+		body = boundedText(value, 4096);
+		truncated |= value.length() > 4096;
 	}
 
 	void dynamicUrl() {
@@ -159,6 +175,24 @@ public final class ApiEndpoint {
 
 	void id(String value) {
 		id = value;
+	}
+
+	void source(AiEvidence value) {
+		AiEvidence bounded = new AiEvidence(value.getNode(), value.getTitle(), boundedText(value.getCode(), 6000),
+				value.getFingerprint(), value.isTruncated() || value.getCode().length() > 6000);
+		for (int i = 0; i < sources.size(); i++) {
+			if (sources.get(i).getTitle().equals(value.getTitle())) {
+				if (sources.get(i).getCode().isEmpty()) {
+					sources.set(i, bounded);
+				}
+				return;
+			}
+		}
+		if (sources.size() < 5) {
+			sources.add(bounded);
+		} else {
+			truncated = true;
+		}
 	}
 
 	String identity() {

@@ -154,17 +154,6 @@ final class AgentPlanner {
 				JsonObject safeFunction = new JsonObject();
 				safeFunction.addProperty("name", operation);
 				JsonObject safeArgs = args.deepCopy();
-				if (operation.equals("search_artifacts")) {
-					safeArgs.addProperty("query", AnalysisRedactor.redact(args.get("query").getAsString()));
-				} else if (operation.equals("update_plan")) {
-					for (JsonElement task : safeArgs.getAsJsonArray("tasks")) {
-						JsonObject item = task.getAsJsonObject();
-						item.addProperty("title", AnalysisRedactor.redact(item.get("title").getAsString()));
-					}
-					if (safeArgs.has("note")) {
-						safeArgs.addProperty("note", AnalysisRedactor.redact(safeArgs.get("note").getAsString()));
-					}
-				}
 				safeFunction.addProperty("arguments", safeArgs.toString());
 				JsonObject safeCall = new JsonObject();
 				safeCall.addProperty("id", id);
@@ -204,7 +193,7 @@ final class AgentPlanner {
 
 	void result(Call call, String text) {
 		if (!call.toolId.isEmpty()) {
-			results.put(call.toolId, AiCodeChunks.prefix(AnalysisRedactor.redact(text), 6500));
+			results.put(call.toolId, AiCodeChunks.prefix(text, 6500));
 		}
 	}
 
@@ -215,7 +204,7 @@ final class AgentPlanner {
 			case LOGIN:
 				return "Trace login entry, request, session/token storage and reuse. Distinguish client checks from unknown server authorization.";
 			case SECRETS:
-				return "Trace sensitive material from declaration to callers, storage and request use where supported. Keep values redacted. Separate unused literals from observed use.";
+				return "Trace observed values from declaration to callers, storage and request use where supported. Preserve source values exactly. Separate unused literals from observed use.";
 			case BEHAVIOR:
 				return "Trace the requested behavior from entry to effects and dependencies, citing concrete code and missing links.";
 			case OVERVIEW:
@@ -228,11 +217,14 @@ final class AgentPlanner {
 	static JsonArray schema() {
 		JsonArray tools = new JsonArray();
 		String[][] reads = {
-				{ "inspect_symbol", "Read code at an existing N node ID; returns redacted bounded source." },
+				{ "inspect_symbol", "Read code at an existing N node ID; returns bounded original source." },
 				{ "find_references", "Find static callers/references for an existing N ID; returns discoverable N IDs." },
 				{ "trace_calls", "Trace outgoing bytecode targets of an existing method N ID; not runtime reachability." },
 				{ "inspect_api", "Trace a known A API ID: construction, authentication, bounded callers and source evidence." },
-				{ "search_artifacts", "Search scan leads and class names by query; at most 20 hits. Not a full source search." },
+				{ "search_artifacts",
+						"Search source leads, loaded resource names and class names for a specific missing link; at most 20 hits. Not a full source search." },
+				{ "read_resource",
+						"Read original JS, HTML or JSON from a known project R- resource ID, optionally R-id@offset. UTF-16 character offset; page <=6000 chars, first 1 Mi chars only. No script execution." },
 				{ "read_evidence", "Read a retained E- evidence ID beyond its abbreviated context preview." }
 		};
 		for (String[] read : reads) {

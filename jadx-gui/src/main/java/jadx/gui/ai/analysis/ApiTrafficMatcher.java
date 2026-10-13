@@ -53,19 +53,22 @@ public final class ApiTrafficMatcher {
 				|| (!endpoint.getMethod().isBlank() && !endpoint.getMethod().equals(exchange.method()))) {
 			return null;
 		}
+		// Keep literal values in the inventory. Correlation compares method, authority and raw path only;
+		// query values, fragments and URL userinfo do not establish an executed request or authentication
+		// match.
 		String address = endpoint.getAddress();
 		List<URI> targets = new ArrayList<>();
 		try {
-			URI route = URI.create(address.replace("{", "%7B").replace("}", "%7D"));
+			URI route = uri(address.replace("{", "%7B").replace("}", "%7D"));
 			if (route.isAbsolute() || route.getHost() != null) {
 				targets.add(route);
 			} else if (dossier != null && !dossier.getBindings().isEmpty()) {
 				for (ApiDossier.Binding binding : dossier.getBindings()) {
 					if (!binding.getBaseUrl().isBlank()) {
 						try {
-							targets.add(URI.create(binding.getBaseUrl()).resolve(route));
+							targets.add(uri(binding.getBaseUrl()).resolve(route));
 						} catch (IllegalArgumentException ignored) {
-							// Redacted or unresolved base URLs cannot establish an authority.
+							// Invalid or unresolved base URLs cannot establish an authority.
 						}
 					}
 				}
@@ -93,6 +96,14 @@ public final class ApiTrafficMatcher {
 		} catch (IllegalArgumentException e) {
 			return null;
 		}
+	}
+
+	private static URI uri(String value) {
+		URI parsed = URI.create(value);
+		String scheme = parsed.getScheme();
+		return scheme != null && (scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))
+				? URI.create(scheme.toLowerCase(java.util.Locale.ROOT) + value.substring(scheme.length()))
+				: parsed;
 	}
 
 	private static String path(URI uri) {

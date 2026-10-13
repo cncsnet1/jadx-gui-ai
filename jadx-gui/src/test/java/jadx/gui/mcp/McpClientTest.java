@@ -135,7 +135,7 @@ class McpClientTest {
 			config.transport = "http";
 			config.url = "http://127.0.0.1:" + server.getAddress().getPort() + "/mcp";
 			try (McpClient client = McpClient.connect(config, new AiCancellation())) {
-				assertThat(client.tools()).hasSize(9);
+				assertThat(client.tools()).hasSize(10);
 				assertThat(client.call("get_project", new JsonObject(), new AiCancellation()).toString()).contains("http-result");
 			}
 			assertThat(initialized).isTrue();

@@ -12,12 +12,17 @@ import jadx.api.JavaClass;
 import jadx.api.JavaMethod;
 import jadx.api.JavaNode;
 import jadx.api.utils.CodeUtils;
+import jadx.gui.ai.AiCancellation;
+import jadx.gui.ai.analysis.ApkProfile;
+import jadx.gui.ai.analysis.ApkProfileScanner;
 
 /** Read-only tools pinned to the project explicitly shared by the user. */
 public final class McpProjectTools {
 
 	private final JadxDecompiler decompiler;
 	private volatile boolean revoked;
+	private final AiCancellation profileCancellation = new AiCancellation();
+	private ApkProfile apkProfile;
 
 	public McpProjectTools(JadxDecompiler decompiler) {
 		this.decompiler = decompiler;
@@ -25,11 +30,15 @@ public final class McpProjectTools {
 
 	public void revoke() {
 		revoked = true;
+		profileCancellation.cancel();
 	}
 
 	public static JsonArray list() {
 		JsonArray tools = new JsonArray();
 		tools.add(tool("get_project", "Describe the project currently shared in JADX. No filesystem paths or credentials.", ""));
+		tools.add(tool("get_apk_profile", "Read local APK protection and framework indicators, code visibility and native ELF symbols. "
+				+ "No unpacking, disassembly or device actions. Native libraries are paginated; symbol samples are bounded.",
+				"offset:integer,limit:integer"));
 		tools.add(tool("list_classes", "Find classes by name substring. Includes inner classes. Paginated.",
 				"query:string,offset:integer,limit:integer"));
 		tools.add(tool("get_class_code", "Read decompiled Java source. Use nextOffset for long classes; offsets count UTF-16 characters.",
@@ -134,6 +143,8 @@ public final class McpProjectTools {
 				name.endsWith("_code") ? 40_000 : 500);
 		JsonObject result = new JsonObject();
 		switch (name) {
+			case "get_apk_profile":
+				return profile(offset, McpJson.integer(args, "limit", 6, 1, 20));
 			case "get_project":
 				JsonArray files = new JsonArray();
 				decompiler.getArgs().getInputFiles().forEach(file -> files.add(file.getName()));
@@ -250,6 +261,52 @@ public final class McpProjectTools {
 		}
 		result.add("usages", items);
 		page(result, offset, limit, usages.size());
+		return result;
+	}
+
+	private synchronized JsonObject profile(int offset, int limit) throws InterruptedException {
+		check();
+		if (apkProfile == null) {
+			apkProfile = ApkProfileScanner.scan(decompiler.getArgs().getInputFiles().stream().map(java.io.File::toPath)
+					.collect(java.util.stream.Collectors.toList()),
+					decompiler.getClassesWithInners().stream().limit(200_000).map(JavaClass::getRawName)
+							.collect(java.util.stream.Collectors.toList()),
+					profileCancellation);
+		}
+		check();
+		var gson = jadx.core.utils.GsonUtils.defaultGsonBuilder().create();
+		JsonObject result = new JsonObject();
+		result.addProperty("scope", "Static artifact indicators only; no unpacking, runtime validation or native decompilation");
+		result.addProperty("complete", apkProfile.isComplete());
+		result.addProperty("dexCount", apkProfile.getDexCount());
+		result.addProperty("javaScriptCount", apkProfile.getJavaScriptCount());
+		result.addProperty("nativeLibraryCount", apkProfile.getNativeLibraryCount());
+		result.add("facts", gson.toJsonTree(apkProfile.getFacts()));
+		result.add("gaps", gson.toJsonTree(apkProfile.getGaps()));
+		result.add("recommendations", gson.toJsonTree(apkProfile.getRecommendations()));
+		JsonArray libraries = new JsonArray();
+		List<ApkProfile.NativeLibrary> all = apkProfile.getNativeLibraries();
+		for (int i = Math.min(offset, all.size()); i < end(offset, limit, all.size()); i++) {
+			ApkProfile.NativeLibrary library = all.get(i);
+			JsonObject item = new JsonObject();
+			item.addProperty("path", library.getPath());
+			item.addProperty("abi", library.getAbi());
+			item.addProperty("architecture", library.getArchitecture());
+			item.addProperty("bitness", library.getBitness());
+			item.addProperty("elf", library.isElf());
+			item.add("jniSymbols",
+					gson.toJsonTree(library.getJniSymbols().stream().limit(20).collect(java.util.stream.Collectors.toList())));
+			item.add("importedSymbols",
+					gson.toJsonTree(library.getImportedSymbols().stream().limit(20).collect(java.util.stream.Collectors.toList())));
+			item.add("exportedSymbols",
+					gson.toJsonTree(library.getExportedSymbols().stream().limit(20).collect(java.util.stream.Collectors.toList())));
+			item.addProperty("symbolsTruncated", library.getJniSymbols().size() > 20 || library.getImportedSymbols().size() > 20
+					|| library.getExportedSymbols().size() > 20);
+			item.add("limitations", gson.toJsonTree(library.getLimitations()));
+			libraries.add(item);
+		}
+		result.add("nativeLibraries", libraries);
+		page(result, offset, limit, all.size());
 		return result;
 	}
 

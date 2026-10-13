@@ -1,10 +1,13 @@
 package jadx.gui.ai.analysis;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -12,7 +15,9 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
@@ -23,6 +28,7 @@ import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.JToggleButton;
 import javax.swing.ListSelectionModel;
 import javax.swing.UIManager;
 import javax.swing.event.DocumentEvent;
@@ -33,9 +39,9 @@ import javax.swing.table.DefaultTableCellRenderer;
 
 import jadx.gui.ai.AiEvidence;
 import jadx.gui.ai.AiText;
-import jadx.gui.burp.BurpText;
 import jadx.gui.burp.BurpTrafficPanel;
 import jadx.gui.ui.MainWindow;
+import jadx.gui.utils.layout.WrapLayout;
 import jadx.gui.utils.ui.WorkbenchUi;
 
 import static jadx.core.utils.GsonUtils.defaultGsonBuilder;
@@ -44,25 +50,37 @@ import static jadx.core.utils.GsonUtils.defaultGsonBuilder;
 public final class ApiCatalogPanel extends JPanel {
 	private final JTextField search = new JTextField();
 	private final JComboBox<String> kind = new JComboBox<>();
+	private final JCheckBox showBackground = new JCheckBox(WorkbenchText.str("triage.show_background"));
 	private final JLabel summary = WorkbenchUi.mutedLabel("");
 	private final JTextArea detail = new JTextArea();
+	private final JTextArea crypto = new JTextArea();
+	private final JTextArea outlet = new JTextArea();
+	private final JTextArea routeStatus = WorkbenchUi.body(CommunicationText.str("select"));
 	private final ApiTableModel model = new ApiTableModel();
 	private final JTable table = new JTable(model);
 	private final JButton source = new JButton(AiText.str("analysis.source"));
 	private final JButton trace = new JButton(AiText.str("api.trace"));
 	private final JButton export = new JButton(AiText.str("api.export"));
-	private final JButton relations = new JButton(AiText.str("api.relation.inspect"));
+	private final JButton relations = new JButton(CommunicationText.str("inspect"));
+	private final JButton evidence = new JButton(CommunicationText.str("evidence"));
 	private final JComboBox<String> evidenceSelector = new JComboBox<>();
 	private final JTextArea evidenceText = new JTextArea();
-	private final javax.swing.JTabbedPane tabs = new javax.swing.JTabbedPane();
+	private final JPanel stages = new JPanel(new CardLayout());
+	private final JPanel actions = new JPanel(new WrapLayout(FlowLayout.LEADING, 8, 2));
+	private final JToggleButton[] stageButtons = new JToggleButton[5];
 	private final CallPathPanel callPath;
 	private final BurpTrafficPanel traffic;
 	private List<AiEvidence> selectedEvidence = List.of();
+	private List<AiEvidence> endpointEvidence = List.of();
+	private List<AiEvidence> cryptoEvidence = List.of();
+	private int stage = 1;
 	private AnalysisReport report;
 	private List<ApiEndpoint> endpoints = List.of();
+	private final Map<String, EvidenceTriage.Decision> triage = new HashMap<>();
 	private boolean busy;
 	private boolean complete;
 	private boolean refreshing;
+	private int foldedCount;
 
 	public ApiCatalogPanel(Consumer<AiEvidence> open, Consumer<ApiEndpoint> investigate) {
 		this(open, investigate, endpoint -> {
@@ -111,6 +129,15 @@ public final class ApiCatalogPanel extends JPanel {
 		export.addActionListener(e -> export());
 		controls.add(export, BorderLayout.EAST);
 		top.add(controls, BorderLayout.NORTH);
+		JPanel focus = new JPanel(new WrapLayout(FlowLayout.LEADING, 8, 2));
+		focus.setOpaque(false);
+		focus.add(WorkbenchUi.mutedLabel(WorkbenchText.str("triage.api_focus")));
+		showBackground.setOpaque(false);
+		showBackground.setToolTipText(WorkbenchText.str("triage.api_hint"));
+		showBackground.getAccessibleContext().setAccessibleDescription(WorkbenchText.str("triage.api_hint"));
+		showBackground.addActionListener(e -> refresh());
+		focus.add(showBackground);
+		top.add(focus, BorderLayout.CENTER);
 		top.add(summary, BorderLayout.SOUTH);
 		add(top, BorderLayout.NORTH);
 		table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -140,35 +167,64 @@ public final class ApiCatalogPanel extends JPanel {
 				selection();
 			}
 		});
-		detail.setEditable(false);
-		detail.setLineWrap(true);
-		detail.setWrapStyleWord(true);
-		detail.setFont(UIManager.getFont("Label.font"));
-		detail.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
+		for (JTextArea text : List.of(detail, crypto, outlet, evidenceText)) {
+			text.setEditable(false);
+			text.setLineWrap(true);
+			text.setWrapStyleWord(true);
+			text.setFont(UIManager.getFont("Label.font"));
+			text.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
+		}
 		JPanel details = WorkbenchUi.transparent();
-		tabs.addTab(AiText.str("api.path.title"), callPath);
-		tabs.addTab(AiText.str("api.relation.title"), new JScrollPane(detail));
-		JPanel evidencePanel = WorkbenchUi.transparent();
+		JPanel route = WorkbenchUi.transparent();
+		JPanel steps = new JPanel(new WrapLayout(FlowLayout.LEADING, 4, 4));
+		steps.setOpaque(false);
+		ButtonGroup group = new ButtonGroup();
+		String[] keys = { "entry", "parameters", "crypto", "outlet", "traffic" };
+		for (int i = 0; i < keys.length; i++) {
+			final int index = i;
+			JToggleButton button = new JToggleButton(CommunicationText.str(keys[i]));
+			button.addActionListener(e -> showStage(index));
+			group.add(button);
+			steps.add(button);
+			stageButtons[i] = button;
+		}
+		stageButtons[stage].setSelected(true);
+		routeStatus.setBorder(BorderFactory.createEmptyBorder(6, 8, 8, 8));
+		routeStatus.setRows(3);
+		route.add(steps, BorderLayout.NORTH);
+		route.add(routeStatus);
+		details.add(route, BorderLayout.NORTH);
+		stages.setOpaque(false);
+		stages.add(callPath, "0");
+		stages.add(new JScrollPane(detail), "1");
+		stages.add(new JScrollPane(crypto), "2");
+		stages.add(new JScrollPane(outlet), "3");
 		evidenceSelector.getAccessibleContext().setAccessibleName(AiText.str("api.relation.evidence"));
 		evidenceSelector.addActionListener(e -> {
 			int index = evidenceSelector.getSelectedIndex();
-			evidenceText.setText(index < 0 || index >= selectedEvidence.size() ? "" : selectedEvidence.get(index).getCode());
+			String text = index < 0 || index >= selectedEvidence.size() ? "" : selectedEvidence.get(index).getCode();
+			evidenceText.setText(text.isEmpty() && selected() != null ? selected().detail() : text);
 			evidenceText.setCaretPosition(0);
 		});
-		evidenceText.setEditable(false);
-		evidenceText.setLineWrap(true);
-		evidenceText.setWrapStyleWord(true);
-		evidenceText.setFont(UIManager.getFont("Label.font"));
-		evidenceText.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
-		evidencePanel.add(evidenceSelector, BorderLayout.NORTH);
-		evidencePanel.add(new JScrollPane(evidenceText));
-		tabs.addTab(AiText.str("api.relation.evidence"), evidencePanel);
 		if (traffic != null) {
-			tabs.addTab(BurpText.str("title"), traffic);
+			stages.add(traffic, "4");
+		} else {
+			stages.add(new JScrollPane(WorkbenchUi.body(CommunicationText.str("traffic_unavailable"))), "4");
 		}
-		tabs.addChangeListener(e -> source.setVisible(tabs.getSelectedIndex() != 0 && tabs.getSelectedComponent() != traffic));
-		source.setVisible(false);
-		details.add(tabs);
+		details.add(stages);
+		JPanel evidenceActions = WorkbenchUi.transparent();
+		evidenceActions.add(evidenceSelector);
+		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 2));
+		buttons.setOpaque(false);
+		buttons.add(evidence);
+		buttons.add(source);
+		evidenceActions.add(buttons, BorderLayout.EAST);
+		details.add(evidenceActions, BorderLayout.SOUTH);
+		evidence.addActionListener(e -> {
+			JScrollPane scroll = new JScrollPane(evidenceText);
+			scroll.setPreferredSize(new Dimension(640, 360));
+			JOptionPane.showMessageDialog(this, scroll, CommunicationText.str("evidence"), JOptionPane.PLAIN_MESSAGE);
+		});
 		JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(table), details);
 		split.setBorder(null);
 		split.setResizeWeight(0.4);
@@ -176,7 +232,6 @@ public final class ApiCatalogPanel extends JPanel {
 		split.getLeftComponent().setMinimumSize(new Dimension(300, 90));
 		split.getRightComponent().setMinimumSize(new Dimension(260, 100));
 		add(split);
-		JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEADING, 8, 2));
 		actions.setOpaque(false);
 		WorkbenchUi.primary(relations);
 		trace.addActionListener(e -> {
@@ -192,14 +247,12 @@ public final class ApiCatalogPanel extends JPanel {
 		});
 		relations.addActionListener(e -> {
 			if (selected() != null) {
-				tabs.setSelectedIndex(0);
+				showStage(0);
 				inspect.accept(selected());
 			}
 		});
 		actions.add(relations);
 		actions.add(trace);
-		actions.add(source);
-		tabs.addChangeListener(e -> actions.setVisible(tabs.getSelectedComponent() != traffic));
 		add(actions, BorderLayout.SOUTH);
 		refresh();
 	}
@@ -208,7 +261,10 @@ public final class ApiCatalogPanel extends JPanel {
 		this.report = report;
 		complete = report != null && report.isComplete();
 		endpoints = report == null ? List.of() : report.getApis();
+		triage.clear();
+		endpoints.forEach(endpoint -> triage.put(endpoint.getId(), EvidenceTriage.assess(report, endpoint.asFinding())));
 		if (report == null) {
+			showBackground.setSelected(false);
 			kind.setSelectedIndex(0);
 			search.setText("");
 			table.getRowSorter().setSortKeys(null);
@@ -227,8 +283,13 @@ public final class ApiCatalogPanel extends JPanel {
 	}
 
 	public void selectEndpoint(String id) {
+		EvidenceTriage.Decision decision = triage.get(id);
+		if (decision != null && decision.getTier() == EvidenceTriage.Tier.BACKGROUND) {
+			showBackground.setSelected(true);
+		}
 		kind.setSelectedIndex(0);
 		search.setText("");
+		refresh();
 		for (int i = 0; i < model.rows.size(); i++) {
 			if (model.rows.get(i).getId().equals(id)) {
 				int row = table.convertRowIndexToView(i);
@@ -248,12 +309,15 @@ public final class ApiCatalogPanel extends JPanel {
 		ApiEndpoint previous = selected();
 		String query = search.getText().trim().toLowerCase(Locale.ROOT);
 		int origin = kind.getSelectedIndex() - 1;
-		List<ApiEndpoint> rows = endpoints.stream()
+		List<ApiEndpoint> matching = endpoints.stream()
 				.filter(e -> origin < 0 || e.getOrigin().ordinal() == origin)
 				.filter(e -> query.isEmpty() || (e.getMethod() + ' ' + e.getHost() + ' ' + e.getAddress() + ' ' + e.parameterSummary() + ' '
 						+ e.getSources().stream().map(AiEvidence::getTitle).collect(Collectors.joining(" "))).toLowerCase(Locale.ROOT)
 								.contains(query))
-				.sorted(java.util.Comparator.comparing(ApiEndpoint::getOrigin))
+				.collect(Collectors.toList());
+		List<ApiEndpoint> rows = matching.stream()
+				.filter(e -> showBackground.isSelected() || triage.get(e.getId()).getTier() != EvidenceTriage.Tier.BACKGROUND)
+				.sorted(Comparator.<ApiEndpoint>comparingInt(e -> triage.get(e.getId()).getScore()).reversed())
 				.collect(Collectors.toList());
 		refreshing = true;
 		model.rows = rows;
@@ -272,8 +336,8 @@ public final class ApiCatalogPanel extends JPanel {
 			table.setRowSelectionInterval(view, view);
 		}
 		refreshing = false;
-		long declared = endpoints.stream().filter(e -> e.getOrigin() == ApiEndpoint.Origin.DECLARATION).count();
-		summary.setText(String.format(AiText.str("api.summary"), rows.size(), endpoints.size(), declared));
+		foldedCount = matching.size() - rows.size();
+		summary.setText(String.format(WorkbenchText.str("triage.api_summary"), rows.size(), endpoints.size(), foldedCount));
 		selection();
 	}
 
@@ -284,38 +348,60 @@ public final class ApiCatalogPanel extends JPanel {
 			traffic.setContext(report, selected, dossier);
 		}
 		callPath.setPath(dossier == null ? null : dossier.getCallPath());
+		String empty = foldedCount > 0 ? WorkbenchText.str("triage.api_folded_empty") : AiText.str("api.empty");
 		detail.setText(selected == null
-				? AiText.str("api.empty")
-				: selected.detail() + "\n\n"
-						+ (dossier == null ? AiText.str("api.relation.select") : dossier.describe()));
-		selectedEvidence = new java.util.ArrayList<>();
+				? empty
+				: TriageText.describe(triage.get(selected.getId())) + "\n\n" + selected.detail());
+		outlet.setText(CommunicationEvidence.outlet(selected, dossier));
+		cryptoEvidence = CommunicationEvidence.crypto(report, selected, dossier);
+		crypto.setText(CommunicationEvidence.cryptoDescription(cryptoEvidence));
+		routeStatus.setText(CommunicationText.str(selected == null ? "select" : dossier == null ? "not_traced" : "traced"));
+		relations.setText(CommunicationText.str(dossier == null ? "inspect" : "cached"));
+		endpointEvidence = new java.util.ArrayList<>();
 		if (selected != null) {
-			selectedEvidence.addAll(selected.getSources());
+			endpointEvidence.addAll(selected.getSources());
 		}
 		if (dossier != null) {
-			selectedEvidence.addAll(dossier.getEvidence());
+			endpointEvidence.addAll(dossier.getEvidence());
 		}
-		evidenceSelector.removeAllItems();
-		selectedEvidence.forEach(e -> evidenceSelector.addItem(e.getTitle()));
 		detail.setCaretPosition(0);
-		source.setEnabled(selected != null);
+		outlet.setCaretPosition(0);
+		crypto.setCaretPosition(0);
+		showStage(stage);
 		setBusy(busy);
 	}
 
-	public static String json(List<ApiEndpoint> endpoints) {
-		return defaultGsonBuilder().create().toJson(Map.of("schemaVersion", 1, "scope", "static observations; not runtime verified",
-				"redacted", true, "endpoints", endpoints));
+	private void showStage(int index) {
+		stage = index;
+		stageButtons[index].setSelected(true);
+		((CardLayout) stages.getLayout()).show(stages, Integer.toString(index));
+		actions.setVisible(index != 4);
+		selectedEvidence = index == 2 ? cryptoEvidence : endpointEvidence;
+		evidenceSelector.removeAllItems();
+		selectedEvidence.forEach(e -> evidenceSelector.addItem(e.getTitle()));
+		evidence.setEnabled(!selectedEvidence.isEmpty());
+		source.setEnabled(!selectedEvidence.isEmpty());
+		evidenceSelector.getParent().setVisible(index != 4);
 	}
 
-	private void export() {
+	public static String json(List<ApiEndpoint> endpoints) {
+		return defaultGsonBuilder().create().toJson(Map.of("schemaVersion", 2, "scope", "static observations; not runtime verified",
+				"redacted", false, "endpoints", endpoints));
+	}
+
+	String exportJson() {
 		List<ApiDossier> dossiers = report == null
 				? List.of()
 				: endpoints.stream().map(e -> report.getApiDossier(e.getId()))
 						.filter(java.util.Objects::nonNull).collect(Collectors.toList());
-		String data = defaultGsonBuilder().create().toJson(Map.of("schemaVersion", 4,
-				"scope", "static declarations and observed HTTP metadata; correlations do not prove code execution or vulnerabilities",
-				"redacted", true, "endpoints", endpoints, "clientRelations", dossiers,
+		return defaultGsonBuilder().create().toJson(Map.of("schemaVersion", 5,
+				"scope", "static declarations and observed HTTP records; correlations do not prove code execution or vulnerabilities",
+				"redacted", false, "endpoints", endpoints, "clientRelations", dossiers,
 				"trafficEvidence", report == null ? List.of() : report.trafficEvidenceExport()));
+	}
+
+	private void export() {
+		String data = exportJson();
 		JFileChooser chooser = new JFileChooser();
 		chooser.setFileFilter(new FileNameExtensionFilter("JSON", "json"));
 		chooser.setSelectedFile(new java.io.File("api-inventory.json"));

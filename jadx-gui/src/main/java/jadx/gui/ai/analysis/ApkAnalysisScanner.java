@@ -66,22 +66,35 @@ public final class ApkAnalysisScanner {
 
 	public AnalysisReport scan(String fingerprint, AiCancellation token, Consumer<AnalysisReport> progress) throws InterruptedException {
 		AnalysisReport report = new AnalysisReport();
+		report.setAppPackage(decompiler.getRoot().getAppPackage());
 		report.setFingerprint(fingerprint);
 		report.setEngineProfile(InvestigationService.profile(decompiler));
 		AnalysisRules rules = new AnalysisRules(report);
 		List<ClassNode> classes = new ArrayList<>(decompiler.getRoot().getClasses());
 		List<ResourceFile> resources = new ArrayList<>(decompiler.getResources());
-		resources.sort(Comparator.comparing(r -> r.getType() != ResourceType.MANIFEST));
+		resources.sort(Comparator.comparing((ResourceFile r) -> r.getType() != ResourceType.MANIFEST)
+				.thenComparingInt(FrameworkAnalyzer::priority));
 		report.totals(classes.size(), resources.size());
+		List<Path> inputs = decompiler.getArgs().getInputFiles().stream().map(java.io.File::toPath)
+				.collect(java.util.stream.Collectors.toList());
+		report.setProfile(ApkProfileScanner.scan(inputs,
+				classes.stream().map(cls -> cls.getClassInfo().getRawName()).collect(java.util.stream.Collectors.toList()), token));
+		progress.accept(report.snapshot());
+		report.setFrameworkAnalysis(FrameworkAnalyzer.analyze(report.getProfile(), inputs, resources, token, report::addApi));
+		progress.accept(report.snapshot());
 		long lastPublish = System.nanoTime();
 		for (ResourceFile resource : resources) {
 			token.check();
 			try {
 				if (supported(resource)) {
-					if (resource.getZipEntry() != null && resource.getZipEntry().getUncompressedSize() > 8L * RESOURCE_LIMIT) {
+					if (resource.getZipEntry() != null && resource.getZipEntry().getUncompressedSize() > 8L * RESOURCE_LIMIT
+							&& !JsApiExtractor.isSupportedResource(resource.getDeobfName())) {
 						report.gap(AiText.str("analysis.resource_large") + resource.getDeobfName());
 					} else {
-						scanResource(resource.loadContent(), rules, report, token);
+						String source = FrameworkAnalyzer.sourceName(resource, inputs);
+						scanResource(resource.loadContent(), rules, report, token, source,
+								!report.getFrameworkAnalysis().getPrioritizedResources().contains(source)
+										&& !FrameworkAnalyzer.excludedRuntime(resource));
 						report.resourceRead();
 					}
 				}
@@ -96,6 +109,8 @@ public final class ApkAnalysisScanner {
 		}
 		progress.accept(report.snapshot());
 		rules.indexResourceReferences();
+		classes.sort(
+				Comparator.comparingInt((ClassNode cls) -> EvidenceTriage.classRank(report, cls.getClassInfo().getRawName())).reversed());
 		for (ClassNode cls : classes) {
 			token.check();
 			String className = cls.getClassInfo().getRawName();
@@ -123,6 +138,7 @@ public final class ApkAnalysisScanner {
 			}
 		}
 		token.check();
+		FrameworkAnalyzer.augmentNative(report);
 		report.setComplete(true);
 		progress.accept(report.snapshot());
 		return report;
@@ -172,6 +188,7 @@ public final class ApkAnalysisScanner {
 			}
 		});
 		rules.behavior(calls.toString(), literals.toString(), title, ref);
+		FrameworkAnalyzer.observeNativeMethod(report, ref, calls.toString(), literals.toString());
 		report.addApi(ApiExtractor.networkContext(calls.toString(), title, ref));
 	}
 
@@ -179,16 +196,19 @@ public final class ApkAnalysisScanner {
 		ResourceType type = resource.getType();
 		String name = resource.getDeobfName().toLowerCase(Locale.ROOT);
 		return type == ResourceType.MANIFEST || type == ResourceType.XML || type == ResourceType.ARSC
-				|| name.matches(".*\\.(json|properties|txt|pem|key|yaml|yml|conf|ini|js|html)$");
+				|| name.matches(".*\\.(json|properties|txt|pem|key|yaml|yml|conf|ini|js|bundle|html|htm)$");
 	}
 
-	private static void scanResource(ResContainer content, AnalysisRules rules, AnalysisReport report, AiCancellation token)
+	private static void scanResource(ResContainer content, AnalysisRules rules, AnalysisReport report, AiCancellation token,
+			String source, boolean extractJs)
 			throws Exception {
 		token.check();
 		if (content == null) {
 			throw new IOException("No decoded resource");
 		}
 		String text;
+		boolean[] truncated = { false };
+		boolean javaScript = JsApiExtractor.isSupportedResource(content.getName());
 		switch (content.getDataType()) {
 			case TEXT:
 			case RES_TABLE:
@@ -196,26 +216,42 @@ public final class ApkAnalysisScanner {
 				break;
 			case RES_LINK:
 				text = ResourcesLoader.decodeStream(content.getResLink(), (size, input) -> {
-					if (size > RESOURCE_LIMIT) {
+					if (size > RESOURCE_LIMIT && !javaScript) {
 						throw new IOException("Resource limit");
 					}
 					byte[] bytes = input.readNBytes(RESOURCE_LIMIT + 1);
-					if (bytes.length > RESOURCE_LIMIT) {
+					if (javaScript && !ScriptContent.isText(bytes)) {
+						report.gap((ScriptContent.isHermes(bytes)
+								? "Hermes bytecode; text parsing skipped: "
+								: "Binary script; text parsing skipped: ")
+								+ source);
+						return "";
+					}
+					if (bytes.length > RESOURCE_LIMIT && !javaScript) {
 						throw new IOException("Resource limit");
 					}
-					return new String(bytes, StandardCharsets.UTF_8);
+					truncated[0] = bytes.length > RESOURCE_LIMIT || size > RESOURCE_LIMIT;
+					return new String(bytes, 0, Math.min(bytes.length, RESOURCE_LIMIT), StandardCharsets.UTF_8);
 				});
 				break;
 			default:
 				return;
 		}
 		if (text.length() > RESOURCE_LIMIT) {
-			report.gap(AiText.str("analysis.resource_large") + content.getName());
+			truncated[0] = true;
 			text = text.substring(0, RESOURCE_LIMIT);
 		}
-		rules.scan(text, content.getName(), null);
+		if (truncated[0]) {
+			report.gap(AiText.str("analysis.resource_large") + content.getName());
+		}
+		rules.scan(text, source, null);
+		token.check();
+		if (javaScript && extractJs) {
+			JsApiExtractor.scan(text, source, truncated[0]).forEach(report::addApi);
+			token.check();
+		}
 		for (ResContainer child : content.getSubFiles()) {
-			scanResource(child, rules, report, token);
+			scanResource(child, rules, report, token, child.getName(), true);
 		}
 	}
 }

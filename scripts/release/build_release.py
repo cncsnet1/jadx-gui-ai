@@ -154,7 +154,7 @@ def add_docs(archive, prefix, version, platform, runtime):
     files = [ROOT / name for name in ("README.md", "README.en.md", "LICENSE", "NOTICE", "CONTRIBUTING.md")]
     files += [ROOT / "docs/AI_WORKBENCH.md", ROOT / "docs/JAVA_DEOBFUSCATION.md", ROOT / "docs/MCP.md", ROOT / "docs/RELEASING.md",
               ROOT / "docs/API_INVENTORY.md", ROOT / "docs/ASSESSMENT_WORKFLOW.md", ROOT / "docs/UPSTREAM_REA_DESIGN.md",
-              ROOT / "docs/BURP_WORKFLOW.md", ROOT / "docs/AGENT_WORKSPACE.md"]
+              ROOT / "docs/BURP_WORKFLOW.md", ROOT / "docs/AGENT_WORKSPACE.md", ROOT / "docs/APK_WORKBENCH.md"]
     files += sorted((ROOT / "docs/releases").glob("*.md"))
     files += [ROOT / "docs/examples/TokenStore.java"]
     files += sorted((ROOT / "docs/images").glob("*.png"))
@@ -171,11 +171,11 @@ def add_docs(archive, prefix, version, platform, runtime):
     }[platform]
     archive.text(f"{prefix}/START-HERE.txt", f"JADX GUI AI {version}\nPlatform: {platform}\n\n{start}\n\n"
                  "Documentation: English - README.en.md | 简体中文 - README.md\n\n"
-                 "Open a file to generate a local application report. Configure a model to start or resume an AI investigation.\n"
-                 "Local reports, the API map, and call paths work without a model; use Source to browse code manually.\n"
+                 "Open a file to start local analysis: Overview, APIs & communication, and Key code.\n"
+                 "Local reports, request traces, and ELF inventory work without a model. Use AI on a selected lead when needed.\n"
                  "This package does not include models, accounts, keys, or analysis records.\n\n"
-                 "打开文件后进入应用调查并自动生成本地报告；配置 AI 后可开始或继续调查。\n"
-                 "本地报告、API 地图和调用路径无需模型；左侧源码可继续手动浏览。\n"
+                 "打开文件后自动生成本地结果：应用概览、接口与通信、关键代码。\n"
+                 "本地报告、请求链路和 ELF 盘点无需模型；需要深入时，再从具体线索启动 AI。\n"
                  "此包不包含模型、账号、密钥或分析记录。\n\n"
                  "macOS: the app is unsigned and not notarized. Follow the operating system's Open / Privacy & Security prompt.\n"
                  "Linux: a graphical desktop and glibc-based distribution are required; this is not an Alpine/musl build.\n\n"

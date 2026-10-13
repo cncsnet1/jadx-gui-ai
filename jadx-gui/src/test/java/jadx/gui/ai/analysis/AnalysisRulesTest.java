@@ -13,7 +13,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AnalysisRulesTest {
 	@Test
-	void shortBearerValuesAndRelativeRouteQueriesNeverEnterStoredEvidence() {
+	void cryptoSummaryRetainsAlgorithmsAndLiteralValuesWithoutClaimingArgumentBindings() {
+		AnalysisReport report = new AnalysisReport();
+		AnalysisRules rules = new AnalysisRules(report);
+		rules.behavior("Landroid/util/Log;.d\n".repeat(150) + "Ljavax/crypto/Cipher;.getInstance\n"
+				+ "Ljavax/crypto/spec/IvParameterSpec;.<init>\n",
+				"const @1 = \"AES/GCM/NoPadding\"\n"
+						+ "const @2 = \"opaque-private-key-91745\"\n",
+				"CipherTask", JadxNodeRef.forCls("CipherTask"));
+		assertThat(report.getFindings()).hasSize(1);
+		assertThat(report.getFindings().get(0).getEvidence().get(0).getCode())
+				.contains("AES/GCM/NoPadding", "IvParameterSpec", "not established", "opaque-private-key-91745")
+				.doesNotContain("android/util/Log");
+		rules.behavior("Ljava/security/MessageDigest;.getInstance", "const @0 = \"SHA-256\"", "DigestTask", null);
+		assertThat(report.getFindings()).extracting(AnalysisFinding::getKind).containsExactly(Kind.CRYPTO, Kind.CRYPTO);
+	}
+
+	@Test
+	void shortBearerValuesAndRelativeRouteQueriesRemainVisibleAndPersisted() {
 		AnalysisReport report = new AnalysisReport();
 		AnalysisRules rules = new AnalysisRules(report);
 		rules.scan("Send Bearer sample-token123 with requests", "README.txt", null);
@@ -21,45 +38,40 @@ class AnalysisRulesTest {
 		rules.add(Kind.HTTP_ROUTE, route, "Api.login", JadxNodeRef.forCls("Api"), route);
 		assertThat(report.getFindings()).hasSize(2);
 		assertThat(report.getFindings().get(0).getRawValue()).isEqualTo("Bearer sample-token123");
-		assertThat(report.getFindings().get(1).getValue()).isEqualTo("retrofit2/http/GET /v1/login?[redacted]");
-		assertThat(report.markdown()).doesNotContain("sample-token123", "private-value", "fragment");
-		assertThat(defaultGsonBuilder().create().toJson(report)).doesNotContain("sample-token123", "private-value", "fragment");
+		assertThat(report.getFindings().get(1).getValue()).isEqualTo(route);
+		assertThat(report.markdown()).contains("sample-token123", "private-value", "fragment");
+		assertThat(defaultGsonBuilder().create().toJson(report)).contains("sample-token123", "private-value", "fragment");
 	}
 
 	@Test
-	void bareUrlsRetainHostAndPathWhileMaskingCredentialsAndQueryValues() {
-		String redacted = AnalysisRedactor.redact("https://user:password@api.example.test/v1?token=private#fragment");
-		assertThat(redacted).isEqualTo("https://[redacted]@api.example.test/v1?[redacted]");
-		assertThat(AnalysisRedactor.redact(redacted)).isEqualTo(redacted);
+	void bareUrlsRetainHostPathCredentialsAndQueryValues() {
+		String url = "https://user:password@api.example.test/v1?token=private#fragment";
 		AnalysisReport report = new AnalysisReport();
-		new AnalysisRules(report).scan("https://api.example.test/login?token=private", "Client", null);
-		assertThat(report.getFindings().get(0).getValue()).isEqualTo("https://api.example.test/login?[redacted]");
-		assertThat(AnalysisRedactor.redact("password=private\nclient_secret: private"))
-				.isEqualTo("password=[literal redacted]\nclient_secret: [literal redacted]");
+		new AnalysisRules(report).scan(url, "Client", null);
+		assertThat(report.getFindings().get(0).getValue()).isEqualTo(url);
+		assertThat(report.getFindings().get(0).getEvidence().get(0).getCode()).isEqualTo(url);
+		new AnalysisRules(report).scan("password=private\nclient_secret: private", "config.properties", null);
+		assertThat(report.getFindings()).anyMatch(f -> f.getKind() == Kind.CREDENTIAL && f.getValue().equals("private"));
 	}
 
 	@Test
-	void mixedCaseUrlCredentialsAreRedactedInSnapshotsAndExports() {
+	void mixedCaseUrlCredentialsArePreservedInSnapshotsAndExports() {
 		AnalysisReport report = new AnalysisReport();
 		new AnalysisRules(report).scan("HTTPS://alice:pass-one@api.example.test/login?token=private-value", "Config", null);
 		String value = report.getFindings().get(0).getValue();
-		assertThat(value).isEqualTo("HTTPS://[redacted]@api.example.test/login?[redacted]");
-		assertThat(report.markdown()).doesNotContain("alice", "pass-one", "private-value");
-		assertThat(defaultGsonBuilder().create().toJson(report)).doesNotContain("alice", "pass-one", "private-value");
-		assertThat(AnalysisRedactor.redact("http://alice:pass@word@api.example.test/login"))
-				.isEqualTo("http://[redacted]@api.example.test/login");
-		assertThat(AnalysisRedactor.redact("http://api.example.test?email=alice@example.test"))
-				.isEqualTo("http://api.example.test?[redacted]");
+		assertThat(value).isEqualTo("HTTPS://alice:pass-one@api.example.test/login?token=private-value");
+		assertThat(report.snapshot().markdown()).contains("alice", "pass-one", "private-value");
+		assertThat(defaultGsonBuilder().create().toJson(report)).contains("alice", "pass-one", "private-value");
 	}
 
 	@Test
-	void longQuotedLiteralsAreMaskedBeforeSnippetTruncation() {
+	void longQuotedLiteralsKeepOriginalPrefixWithExplicitSnippetTruncation() {
 		String original = "String x = \"https://api.example.test/v1?token=secret" + " smallvalue".repeat(20_000) + "\";";
-		String redacted = AnalysisRedactor.redact(original);
-		assertThat(redacted).isEqualTo("String x = \"https://api.example.test/v1?[redacted]\";");
 		AnalysisReport report = new AnalysisReport();
 		new AnalysisRules(report).scan(original, "Long.java", null);
-		assertThat(report.markdown()).doesNotContain("smallvalue", "token=secret");
+		assertThat(report.markdown()).contains("smallvalue", "token=secret");
+		assertThat(report.getFindings().get(0).getEvidence().get(0).getCode()).hasSizeLessThanOrEqualTo(1800);
+		assertThat(report.getFindings().get(0).getEvidence().get(0).isTruncated()).isTrue();
 	}
 
 	@Test
@@ -77,7 +89,7 @@ class AnalysisRulesTest {
 	}
 
 	@Test
-	void distinguishesCredentialsFromKeywordsAndKeepsEvidenceRedacted() {
+	void distinguishesCredentialsFromKeywordsAndKeepsOriginalEvidence() {
 		AnalysisReport report = new AnalysisReport();
 		AnalysisRules rules = new AnalysisRules(report);
 		rules.scan("String password = input;\nString passwordLabel = \"password\";", "NoCredentials", null);
@@ -85,7 +97,7 @@ class AnalysisRulesTest {
 		rules.scan("String password = \"demo-secret-9842\";\nString url = \"https://api.example.test/login?token=private-value\";",
 				"Login.java", JadxNodeRef.forCls("Login"));
 		assertThat(report.getFindings()).extracting(AnalysisFinding::getKind).containsExactly(Kind.CREDENTIAL, Kind.ENDPOINT);
-		assertThat(report.markdown()).doesNotContain("demo-secret-9842", "private-value").contains("Login.java:1");
+		assertThat(report.markdown()).contains("demo-secret-9842", "private-value", "Login.java:1");
 		assertThat(report.getFindings().get(0).getRawValue()).isEqualTo("demo-secret-9842");
 	}
 
@@ -99,7 +111,7 @@ class AnalysisRulesTest {
 		rules.scan("-----BEGIN PRIVATE KEY-----\nKEY_MATERIAL_HERE\n-----END PRIVATE KEY-----", "assets/key.pem", null);
 		assertThat(report.getFindings()).extracting(AnalysisFinding::getKind)
 				.containsExactly(Kind.CREDENTIAL, Kind.PUBLIC_CONFIG, Kind.CREDENTIAL, Kind.PRIVATE_KEY);
-		assertThat(report.markdown()).doesNotContain("resource-secret", "plain-secret", "KEY_MATERIAL_HERE", "public-project-key");
+		assertThat(report.markdown()).contains("resource-secret", "plain-secret", "KEY_MATERIAL_HERE", "public-project-key");
 		assertThat(report.getFindings().get(3).getRawValue()).contains("KEY_MATERIAL_HERE");
 	}
 
@@ -117,18 +129,20 @@ class AnalysisRulesTest {
 	}
 
 	@Test
-	void savedProjectRestoresReportButNeverOriginalValues() {
+	void savedProjectRestoresOriginalValuesAndSourceEvidence() {
 		AnalysisReport report = new AnalysisReport();
-		new AnalysisRules(report).scan("password=\"do-not-save-this\"", "Config", JadxNodeRef.forCls("Config"));
+		new AnalysisRules(report).scan("password=\"preserve-this-value\"", "Config", JadxNodeRef.forCls("Config"));
 		report.setFingerprint("fingerprint");
 		report.setComplete(true);
 		ProjectData project = new ProjectData();
 		project.setAnalysisReport(report);
 		var gson = defaultGsonBuilder().create();
 		String json = gson.toJson(project);
-		assertThat(json).doesNotContain("do-not-save-this");
+		assertThat(json).contains("preserve-this-value");
 		AnalysisReport restored = gson.fromJson(json, ProjectData.class).getAnalysisReport();
-		assertThat(restored.getFindings().get(0).getRawValue()).isNull();
+		assertThat(restored.getFindings().get(0).getRawValue()).isEqualTo("preserve-this-value");
+		assertThat(restored.getFindings().get(0).getValue()).isEqualTo("preserve-this-value");
+		assertThat(restored.getFindings().get(0).getEvidence().get(0).getCode()).contains("preserve-this-value");
 		assertThat(restored.matches("fingerprint")).isTrue();
 		assertThat(restored.matches("changed")).isFalse();
 		assertThat(gson.fromJson("{}", ProjectData.class).getAnalysisReport()).isNull();

@@ -47,12 +47,12 @@ class ApiRelationResolverTest {
 	}
 
 	@Test
-	void anonymousInterceptorsAreUnresolvedAndEvidenceIsRedacted() throws Exception {
+	void anonymousInterceptorsAreUnresolvedAndOriginalUrlEvidenceIsPreserved() throws Exception {
 		ApiDossier dossier = analyze("Api create() { var h = new OkHttpClient.Builder().addInterceptor(new Auth() {}).build(); "
 				+ "return new Retrofit.Builder().baseUrl(\"https://user:fixture-password@example.test/\").client(h).build().create(Api.class); }");
 		assertThat(dossier.getBindings()).hasSize(1);
 		assertThat(dossier.getBindings().get(0).getInterceptors()).isEmpty();
-		assertThat(dossier.describe()).doesNotContain("fixture-password");
-		assertThat(dossier.getEvidence()).allSatisfy(e -> assertThat(e.getCode()).doesNotContain("fixture-password"));
+		assertThat(dossier.describe()).contains("fixture-password");
+		assertThat(dossier.getEvidence()).allSatisfy(e -> assertThat(e.getCode()).contains("fixture-password"));
 	}
 }

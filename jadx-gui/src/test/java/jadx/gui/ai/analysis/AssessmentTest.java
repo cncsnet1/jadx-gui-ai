@@ -91,8 +91,18 @@ class AssessmentTest {
 		assertThat(fresh.review(credential(fresh).key()).getStatus()).isEqualTo(Status.INVESTIGATING);
 		AnalysisReport ambiguous = report("apk", false, "String password = \"first-secret\", client_secret = \"second-secret\";");
 		var ambiguousJson = gson.toJsonTree(ambiguous).getAsJsonObject();
-		ambiguousJson.getAsJsonArray("findings").forEach(f -> f.getAsJsonObject().remove("reviewKey"));
+		// Historical reports collapsed different values on the same source line to the same masked
+		// identity.
+		ambiguousJson.getAsJsonArray("findings").forEach(f -> {
+			var finding = f.getAsJsonObject();
+			finding.remove("reviewKey");
+			finding.remove("rawValue");
+			finding.addProperty("value", "[redacted]");
+		});
 		AnalysisReport oldAmbiguous = gson.fromJson(ambiguousJson, AnalysisReport.class);
+		assertThat(oldAmbiguous.getFindings()).hasSize(2);
+		assertThat(oldAmbiguous.getFindings().get(0).legacyReviewKey())
+				.isEqualTo(oldAmbiguous.getFindings().get(1).legacyReviewKey());
 		oldAmbiguous.review(credential(oldAmbiguous), new AssessmentReview(Status.INVESTIGATING, Severity.UNASSESSED, "Ambiguous"));
 		ambiguous.carryReviews(oldAmbiguous);
 		assertThat(AssessmentItem.from(ambiguous)).allMatch(i -> ambiguous.review(i.key()).getStatus() == Status.UNREVIEWED);
@@ -119,8 +129,11 @@ class AssessmentTest {
 		assertThat(snapshot.review(item.key()).getStatus()).isEqualTo(Status.INVESTIGATING);
 		var gson = defaultGsonBuilder().create();
 		String json = gson.toJson(report);
-		assertThat(json).doesNotContain("fixture-secret");
-		AssessmentReview restored = gson.fromJson(json, AnalysisReport.class).review(item.key());
+		assertThat(json).contains("fixture-secret");
+		AnalysisReport restoredReport = gson.fromJson(json, AnalysisReport.class);
+		assertThat(credential(restoredReport).finding().getValue()).isEqualTo("fixture-secret");
+		assertThat(credential(restoredReport).finding().getRawValue()).isEqualTo("fixture-secret");
+		AssessmentReview restored = restoredReport.review(item.key());
 		assertThat(restored.getStatus()).isEqualTo(Status.DISMISSED);
 		assertThat(restored.getNote()).contains("Test-only code");
 		assertThat(restored.getUpdatedAt()).isPositive();
@@ -129,14 +142,14 @@ class AssessmentTest {
 	}
 
 	@Test
-	void reportMarksHumanOutcomesAndRedactsNotesOnExportWithoutChangingLocalNotes() {
+	void reportPreservesHumanOutcomesAndOriginalNotesWhileEscapingMarkdownFences() {
 		AnalysisReport report = report("apk", false, "password=fixture-secret");
 		AssessmentItem item = credential(report);
 		report.review(item, new AssessmentReview(Status.REPRODUCED, Severity.HIGH,
 				"Evidence saved in test logs.\npassword=private-note-secret\n````<script>"));
 		assertThat(report.markdown()).contains(AiText.str("assessment.state"), Status.REPRODUCED.toString(),
-				Severity.HIGH.toString(), "Evidence saved in test logs.")
-				.doesNotContain("private-note-secret", "fixture-secret", "````<script>");
+				Severity.HIGH.toString(), "Evidence saved in test logs.", "private-note-secret", "fixture-secret")
+				.doesNotContain("````<script>");
 		assertThat(report.review(item.key()).getNote()).contains("private-note-secret");
 	}
 
@@ -167,7 +180,7 @@ class AssessmentTest {
 		AnalysisReport report = new AnalysisReport();
 		for (int i = 0; i < 100; i++) {
 			report.add(new AnalysisFinding("F" + i, Kind.CREDENTIAL, "secret" + i,
-					new AiEvidence(null, "Config" + i, "[redacted]", "hash" + i, false)));
+					new AiEvidence(null, "Config" + i, "password=secret" + i, "hash" + i, false)));
 		}
 		report.add(new AnalysisFinding("F101", Kind.EXPORTED, "component", new AiEvidence(null, "Manifest", "exported", "", false)));
 		report.addApi(new ApiEndpoint(ApiEndpoint.Origin.DECLARATION, "GET", "/users/{id}", "Api.users", null));
@@ -191,7 +204,7 @@ class AssessmentTest {
 				});
 		assertThat(sent).hasSize(2);
 		assertThat(sent.get(1)).contains(AiText.str("assessment.prompt"));
-		assertThat(sent.toString()).doesNotContain("HumanOnlyNote7824", "fixture-secret");
+		assertThat(sent.toString()).contains("fixture-secret").doesNotContain("HumanOnlyNote7824");
 		assertThat(report.review(item.key()).getStatus()).isEqualTo(Status.DISMISSED);
 	}
 }

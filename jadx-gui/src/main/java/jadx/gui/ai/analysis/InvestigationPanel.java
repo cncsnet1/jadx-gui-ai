@@ -61,6 +61,7 @@ public final class InvestigationPanel extends JPanel {
 	private AiRecord legacy;
 	private boolean available;
 	private String selectedId;
+	private AnalysisReport currentReport;
 
 	public InvestigationPanel(JEditorPane narrative, OpportunityPanel opportunities, BiConsumer<InvestigationRun, String> continueRun,
 			BiConsumer<AnalysisGoal, String> startRun, Runnable cancel, Consumer<AiRecord> display, Consumer<AiEvidence> open) {
@@ -112,7 +113,7 @@ public final class InvestigationPanel extends JPanel {
 		newTask.addActionListener(e -> compose(!composing));
 		WorkbenchUi.primary(resume);
 		resume.addActionListener(e -> {
-			if (selected() != null) {
+			if (canResume()) {
 				continueRun.accept(selected(), followUp.getText().trim());
 			}
 		});
@@ -219,6 +220,7 @@ public final class InvestigationPanel extends JPanel {
 	}
 
 	public void setReport(AnalysisReport report, String selectId) {
+		currentReport = report;
 		available = report != null && report.isComplete() && report.hasEvidence();
 		String selected = selectId != null ? selectId : selected() == null ? null : selected().getId();
 		legacy = report == null ? null : report.getAnalysis();
@@ -252,8 +254,10 @@ public final class InvestigationPanel extends JPanel {
 
 	public void setBusy(boolean value) {
 		busy = value;
-		resume.setEnabled(!value && selected() != null);
-		followUp.setEnabled(!value && selected() != null);
+		boolean resumable = canResume();
+		resume.setEnabled(!value && resumable);
+		followUp.setEnabled(!value && resumable);
+		resume.setToolTipText(selected() != null && !resumable ? AiText.str("assessment.stale") : null);
 		history.setEnabled(!value);
 		newTask.setEnabled(!value && available);
 		start.setEnabled(!value && available);
@@ -261,6 +265,10 @@ public final class InvestigationPanel extends JPanel {
 		task.setEnabled(!value && available);
 		taskGoal.setEnabled(!value && available);
 		stop.setEnabled(value);
+	}
+
+	private boolean canResume() {
+		return InvestigationService.canResume(currentReport, selected(), currentReport == null ? null : currentReport.getEngineProfile());
 	}
 
 	private void render() {
@@ -285,6 +293,7 @@ public final class InvestigationPanel extends JPanel {
 			display.accept(legacy);
 		} else {
 			state.setText(run.getState() + " · " + run.getReason()
+					+ (!busy && !canResume() ? "\n" + AiText.str("assessment.stale") : "")
 					+ (run.getAnswer() == null
 							? ""
 							: "\n" + String.format(AiText.str("investigation.answer_steps"), run.getAnsweredSteps()))

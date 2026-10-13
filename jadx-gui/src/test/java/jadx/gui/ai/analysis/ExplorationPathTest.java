@@ -43,9 +43,10 @@ class ExplorationPathTest {
 				AssessmentItem.from(report).stream().filter(i -> i.finding().getId().equals("A1")).findFirst().orElseThrow();
 		report.review(selected, new AssessmentReview(Status.INVESTIGATING, Severity.HIGH, "HumanNoteDoNotExportInPackage"));
 		String markdown = ExplorationPath.markdown(selected, report);
-		assertThat(markdown).contains("GET users/{id}", "Api.users", AiText.str("api.base_unknown"),
+		assertThat(markdown).contains("GET users/{id}?token=private-value", "Authorization", "Bearer secret-header",
+				"Api.users", AiText.str("api.base_unknown"),
 				AiText.str("explore.package_hint"), AiText.str("explore.boundary"));
-		assertThat(markdown).doesNotContain("private-value", "secret-header", "unrelated.test", "HumanNoteDoNotExportInPackage");
+		assertThat(markdown).doesNotContain("unrelated.test", "HumanNoteDoNotExportInPackage");
 		report.setComplete(false);
 		assertThat(ExplorationPath.markdown(selected, report)).contains(AiText.str("analysis.partial"));
 	}

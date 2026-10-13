@@ -62,8 +62,8 @@ public final class EvidenceStore {
 		if (!entries.keySet().containsAll(parents)) {
 			throw new IllegalArgumentException("Evidence parent is not retained in this investigation");
 		}
-		String clean = AnalysisRedactor.redact(source.getCode());
-		AiEvidence retained = new AiEvidence(source.getNode(), AnalysisRedactor.redact(source.getTitle()), clean,
+		String clean = source.getCode();
+		AiEvidence retained = new AiEvidence(source.getNode(), source.getTitle(), clean,
 				source.getFingerprint(), source.isTruncated());
 		List<String> links = new ArrayList<>(parents);
 		Collections.sort(links);

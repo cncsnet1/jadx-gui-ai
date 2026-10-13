@@ -56,8 +56,20 @@ class McpServerTest {
 		HttpResponse<String> response = post(request, server.token(), null, McpJson.VERSION);
 		assertThat(response.statusCode()).isEqualTo(200);
 		assertThat(JsonParser.parseString(response.body()).getAsJsonObject().getAsJsonObject("result").getAsJsonArray("tools"))
-				.hasSize(9);
+				.hasSize(10);
 		assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
+	}
+
+	@Test
+	void profilesSharedArtifactsWithoutClaimingUnpackingOrLeakingAbsolutePaths() throws Exception {
+		JsonObject result = data("get_apk_profile", "{\"limit\":1}");
+		assertThat(result.get("scope").getAsString()).contains("no unpacking");
+		assertThat(result.getAsJsonArray("facts")).isNotNull();
+		assertThat(result.getAsJsonArray("nativeLibraries")).isEmpty();
+		assertThat(result.toString()).doesNotContain("E:\\", "C:\\", "user.home");
+		assertThat(tools.call("get_apk_profile", McpJson.object("{\"limit\":21}")).get("isError").getAsBoolean()).isTrue();
+		tools.revoke();
+		assertThat(tools.call("get_apk_profile", new JsonObject()).get("isError").getAsBoolean()).isTrue();
 	}
 
 	@Test

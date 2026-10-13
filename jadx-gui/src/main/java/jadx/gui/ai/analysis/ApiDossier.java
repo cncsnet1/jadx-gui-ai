@@ -20,7 +20,7 @@ public final class ApiDossier {
 		}
 
 		Binding(String baseUrl, String factory, List<String> interceptors, JadxNodeRef source) {
-			this.baseUrl = AnalysisRedactor.safeUrl(baseUrl);
+			this.baseUrl = ApiEndpoint.boundedText(baseUrl, 2000);
 			this.factory = factory;
 			this.interceptors = List.copyOf(interceptors);
 			this.source = source;
