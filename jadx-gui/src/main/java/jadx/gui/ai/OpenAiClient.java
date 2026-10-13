@@ -146,6 +146,9 @@ public final class OpenAiClient implements AiClient {
 				JsonObject result = JsonParser.parseString(json.toString()).getAsJsonObject();
 				JsonObject choice = result.getAsJsonArray("choices").get(0).getAsJsonObject();
 				String reason = choice.get("finish_reason").getAsString();
+				if ("length".equals(reason)) {
+					throw new OutputLimitException();
+				}
 				if (!"stop".equals(reason) && !"tool_calls".equals(reason)) {
 					throw new IOException("AI tool response incomplete");
 				}
@@ -215,6 +218,13 @@ public final class OpenAiClient implements AiClient {
 
 		public int getStatus() {
 			return status;
+		}
+	}
+
+	/** The provider exhausted its output/context budget; partial output must not be used as a plan. */
+	public static final class OutputLimitException extends IOException {
+		public OutputLimitException() {
+			super("AI response incomplete (length)");
 		}
 	}
 
@@ -369,6 +379,9 @@ public final class OpenAiClient implements AiClient {
 			}
 			JsonElement reason = choice.get("finish_reason");
 			if (reason != null && !reason.isJsonNull()) {
+				if ("length".equals(reason.getAsString())) {
+					throw new OutputLimitException();
+				}
 				if (!"stop".equals(reason.getAsString())) {
 					throw new IOException("AI response incomplete (" + reason.getAsString() + ")");
 				}

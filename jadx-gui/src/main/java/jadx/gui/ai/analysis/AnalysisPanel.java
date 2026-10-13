@@ -589,12 +589,15 @@ public final class AnalysisPanel extends JPanel {
 				return;
 			}
 			setBusy(false);
+			boolean agentFailed = activeRun != null;
 			if (activeRun != null) {
 				project.setAnalysisReport(report);
 				activeRun = null;
 			}
 			activeProject = null;
-			status.setText(AiText.str("analysis.failed") + AiConnectionError.describe(error));
+			status.setText(agentFailed
+					? AiText.str("agent.failed_status")
+					: AiText.str("analysis.failed") + " " + AiConnectionError.describe(error));
 			renderOverview();
 		});
 	}

@@ -74,11 +74,18 @@ public final class AnalysisInvestigator {
 		}
 		CollectedContext collected = collectContext(selected, focus != null, token, status);
 		status.accept(AiText.str("analysis.explaining"));
-		return explain(report, goal, question, selected, collected, profile, token, focus == null ? candidates.size() : 1);
+		return explain(report, goal, question, selected, collected, profile, token, focus == null ? candidates.size() : 1, status);
 	}
 
 	AiRecord explain(AnalysisReport report, AnalysisGoal goal, String question, List<AnalysisFinding> selected,
 			CollectedContext collected, AiProfile profile, AiCancellation token, int catalogSize) throws Exception {
+		return explain(report, goal, question, selected, collected, profile, token, catalogSize, ignored -> {
+		});
+	}
+
+	AiRecord explain(AnalysisReport report, AnalysisGoal goal, String question, List<AnalysisFinding> selected,
+			CollectedContext collected, AiProfile profile, AiCancellation token, int catalogSize, Consumer<String> status)
+			throws Exception {
 		List<AiEvidence> evidence = collected.evidence;
 		if (evidence.isEmpty()) {
 			throw new IllegalArgumentException(AiText.str("analysis.no_evidence"));
@@ -103,8 +110,9 @@ public final class AnalysisInvestigator {
 					+ "Do not fill a quota. If the budget is too small, return an empty candidates array and briefly explain why.";
 		}
 		AiRequestContext context = new AiRequestContext(evidence, List.of(), prompt, !opportunities);
-		String answer = client.stream(profile.getModel(), context.getMessages(), 0.2, profile.getOutputTokens(), token, ignored -> {
-		});
+		String answer = new AgentResponse(profile.getOutputTokens(), status).read(token,
+				budget -> client.stream(profile.getModel(), context.getMessages(), 0.2, budget, token, ignored -> {
+				}));
 		token.check();
 		AiRecord record = new AiRecord(goal + (selected.size() == 1 ? " · " + selected.get(0).getId() : ""), answer, evidence, profile);
 		if (opportunities) {

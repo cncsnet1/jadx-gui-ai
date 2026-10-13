@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -23,6 +24,7 @@ import jadx.gui.ai.analysis.InvestigationService.Plan;
 final class AgentPlanner {
 	private final AiClient client;
 	private final AiProfile profile;
+	private final AgentResponse response;
 	private boolean compatibility;
 	private boolean nativeAccepted;
 	private JsonObject previous;
@@ -30,8 +32,14 @@ final class AgentPlanner {
 	private final List<String> planCalls = new ArrayList<>();
 
 	AgentPlanner(AiClient client, AiProfile profile) {
+		this(client, profile, ignored -> {
+		});
+	}
+
+	AgentPlanner(AiClient client, AiProfile profile, Consumer<String> status) {
 		this.client = client;
 		this.profile = profile;
+		this.response = new AgentResponse(profile.getOutputTokens(), status);
 		compatibility = !client.supportsTools();
 	}
 
@@ -62,7 +70,8 @@ final class AgentPlanner {
 				});
 			}
 			try {
-				JsonObject reply = client.completeWithTools(profile.getModel(), messages, schema(), 2400, token);
+				JsonObject reply = response.read(token,
+						budget -> client.completeWithTools(profile.getModel(), messages, schema(), budget, token));
 				nativeAccepted = true;
 				return nativePlan(reply);
 			} catch (HttpFailure e) {
@@ -74,18 +83,26 @@ final class AgentPlanner {
 				compatibility = true;
 			}
 		}
-		return InvestigationService.parse(client.stream(profile.getModel(), context, 0.1, 2400, token, ignored -> {
-		}));
+		return InvestigationService.parse(response.read(token,
+				budget -> client.stream(profile.getModel(), context, 0.1, budget, token, ignored -> {
+				})));
 	}
 
 	private Plan nativePlan(JsonObject reply) {
-		// Check size/nesting before parsing function arguments, even for an otherwise valid transport
-		// response.
-		InvestigationService.checkedObject(reply.toString());
 		if (!reply.has("tool_calls") || !reply.get("tool_calls").isJsonArray()) {
 			throw new IllegalArgumentException("Use tools or finish_investigation");
 		}
 		JsonArray requested = reply.getAsJsonArray("tool_calls");
+		// Tool limits apply to the executable envelope, not the provider's opaque reasoning field.
+		JsonObject envelope = new JsonObject();
+		envelope.add("tool_calls", requested);
+		InvestigationService.checkedObject(envelope.toString());
+		JsonElement reasoning = reply.get("reasoning_content");
+		if (reasoning != null && !reasoning.isJsonNull()
+				&& (!reasoning.isJsonPrimitive() || !reasoning.getAsJsonPrimitive().isString()
+						|| reasoning.getAsString().length() > 1_000_000)) {
+			throw new IllegalArgumentException("Invalid provider continuation field");
+		}
 		if (requested.isEmpty() || requested.size() > 3) {
 			throw new IllegalArgumentException("Expected 1-3 function calls");
 		}
@@ -165,6 +182,11 @@ final class AgentPlanner {
 			}
 			previous = message("assistant", "");
 			previous.add("tool_calls", sanitized);
+			if (reasoning != null && !reasoning.isJsonNull()) {
+				// Required by thinking-mode providers. Return unchanged to the same provider only;
+				// never include in public plans, evidence, reports or persisted project data.
+				previous.add("reasoning_content", reasoning.deepCopy());
+			}
 			results.clear();
 			ids.forEach(id -> results.put(id, "Not executed: pending validation or budget."));
 			planCalls.clear();

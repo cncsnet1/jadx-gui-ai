@@ -12,6 +12,9 @@ public final class AiConnectionError {
 
 	public static String describe(Throwable error) {
 		for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+			if (cause instanceof OpenAiClient.OutputLimitException) {
+				return AiText.str("error_output_limit");
+			}
 			if (cause instanceof OpenAiClient.HttpFailure) {
 				int status = ((OpenAiClient.HttpFailure) cause).getStatus();
 				String key = status == 401 || status == 403 ? "error_auth"

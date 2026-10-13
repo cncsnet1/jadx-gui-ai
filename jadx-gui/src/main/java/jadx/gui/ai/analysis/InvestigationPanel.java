@@ -265,6 +265,9 @@ public final class InvestigationPanel extends JPanel {
 
 	private void render() {
 		InvestigationRun run = selected();
+		resume.setText(AiText.str(run != null && run.getState() == InvestigationRun.State.FAILED
+				? "agent.retry"
+				: "investigation.continue"));
 		String id = run == null ? null : run.getId();
 		if (!java.util.Objects.equals(selectedId, id)) {
 			followUp.setText("");
@@ -290,8 +293,8 @@ public final class InvestigationPanel extends JPanel {
 							: ""));
 			StringBuilder text = new StringBuilder(run.toString() + "\n\n");
 			run.getFollowUps().forEach(q -> text.append(AiText.str("agent.direction")).append(q).append("\n\n"));
-			activity.setText((run.getState() == InvestigationRun.State.RUNNING ? run.getAction() : run.getReason())
-					+ "\n" + String.format(AiText.str("agent.counts"), run.getRounds(), InvestigationService.MAX_ROUNDS,
+			activity.setText((run.getState() == InvestigationRun.State.RUNNING ? run.getAction() + "\n" : "")
+					+ String.format(AiText.str("agent.counts"), run.getRounds(), InvestigationService.MAX_ROUNDS,
 							run.getCalls(), InvestigationService.MAX_CALLS, run.getEvidence().entries().size())
 					+ (run.isCompatibility() ? "\n" + AiText.str("agent.compatibility") : "")
 					+ (run.getFollowUps().isEmpty()
@@ -299,7 +302,9 @@ public final class InvestigationPanel extends JPanel {
 							: "\n" + AiText.str("agent.direction")
 									+ jadx.gui.ai.AiCodeChunks.prefix(run.getFollowUps().get(run.getFollowUps().size() - 1), 300)));
 			if (run.getTasks().isEmpty()) {
-				JTextArea empty = WorkbenchUi.body(AiText.str("agent.empty_plan"));
+				JTextArea empty = WorkbenchUi.body(AiText.str(run.getState() == InvestigationRun.State.RUNNING
+						? "agent.awaiting_plan"
+						: "agent.no_plan"));
 				empty.setAlignmentX(LEFT_ALIGNMENT);
 				plan.add(empty);
 			}
