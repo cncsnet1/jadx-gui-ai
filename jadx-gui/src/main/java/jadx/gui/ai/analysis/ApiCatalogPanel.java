@@ -48,14 +48,27 @@ public final class ApiCatalogPanel extends JPanel {
 	private final JButton source = new JButton(AiText.str("analysis.source"));
 	private final JButton trace = new JButton(AiText.str("api.trace"));
 	private final JButton export = new JButton(AiText.str("api.export"));
+	private final JButton relations = new JButton(AiText.str("api.relation.inspect"));
+	private final JComboBox<String> evidenceSelector = new JComboBox<>();
+	private final JTextArea evidenceText = new JTextArea();
+	private final javax.swing.JTabbedPane tabs = new javax.swing.JTabbedPane();
+	private final CallPathPanel callPath;
+	private List<AiEvidence> selectedEvidence = List.of();
+	private AnalysisReport report;
 	private List<ApiEndpoint> endpoints = List.of();
 	private boolean busy;
 	private boolean complete;
 	private boolean refreshing;
 
 	public ApiCatalogPanel(Consumer<AiEvidence> open, Consumer<ApiEndpoint> investigate) {
+		this(open, investigate, endpoint -> {
+		});
+	}
+
+	public ApiCatalogPanel(Consumer<AiEvidence> open, Consumer<ApiEndpoint> investigate, Consumer<ApiEndpoint> inspect) {
 		super(new BorderLayout(0, 8));
 		setOpaque(false);
+		callPath = new CallPathPanel(open);
 		JPanel top = WorkbenchUi.transparent();
 		JPanel controls = WorkbenchUi.transparent();
 		kind.addItem(AiText.str("api.all"));
@@ -108,6 +121,7 @@ public final class ApiCatalogPanel extends JPanel {
 		table.getAccessibleContext().setAccessibleName(AiText.str("api.title"));
 		table.getColumnModel().getColumn(0).setPreferredWidth(115);
 		table.getColumnModel().getColumn(1).setPreferredWidth(60);
+		table.getColumnModel().getColumn(1).setMinWidth(70);
 		table.getColumnModel().getColumn(2).setPreferredWidth(320);
 		table.getColumnModel().getColumn(3).setPreferredWidth(180);
 		table.getSelectionModel().addListSelectionListener(e -> {
@@ -120,28 +134,55 @@ public final class ApiCatalogPanel extends JPanel {
 		detail.setWrapStyleWord(true);
 		detail.setFont(UIManager.getFont("Label.font"));
 		detail.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
-		JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(table), new JScrollPane(detail));
+		JPanel details = WorkbenchUi.transparent();
+		tabs.addTab(AiText.str("api.path.title"), callPath);
+		tabs.addTab(AiText.str("api.relation.title"), new JScrollPane(detail));
+		JPanel evidencePanel = WorkbenchUi.transparent();
+		evidenceSelector.getAccessibleContext().setAccessibleName(AiText.str("api.relation.evidence"));
+		evidenceSelector.addActionListener(e -> {
+			int index = evidenceSelector.getSelectedIndex();
+			evidenceText.setText(index < 0 || index >= selectedEvidence.size() ? "" : selectedEvidence.get(index).getCode());
+			evidenceText.setCaretPosition(0);
+		});
+		evidenceText.setEditable(false);
+		evidenceText.setLineWrap(true);
+		evidenceText.setWrapStyleWord(true);
+		evidenceText.setFont(UIManager.getFont("Label.font"));
+		evidenceText.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
+		evidencePanel.add(evidenceSelector, BorderLayout.NORTH);
+		evidencePanel.add(new JScrollPane(evidenceText));
+		tabs.addTab(AiText.str("api.relation.evidence"), evidencePanel);
+		tabs.addChangeListener(e -> source.setVisible(tabs.getSelectedIndex() != 0));
+		source.setVisible(false);
+		details.add(tabs);
+		JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(table), details);
 		split.setBorder(null);
-		split.setResizeWeight(0.55);
-		split.setDividerLocation(580);
+		split.setResizeWeight(0.4);
+		split.setDividerLocation(430);
 		split.getLeftComponent().setMinimumSize(new Dimension(300, 90));
 		split.getRightComponent().setMinimumSize(new Dimension(260, 100));
 		add(split);
 		JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEADING, 8, 2));
 		actions.setOpaque(false);
-		WorkbenchUi.primary(trace);
+		WorkbenchUi.primary(relations);
 		trace.addActionListener(e -> {
 			if (selected() != null) {
 				investigate.accept(selected());
 			}
 		});
 		source.addActionListener(e -> {
-			ApiEndpoint endpoint = selected();
-			if (endpoint != null) {
-				AiEvidence location = endpoint.getSources().get(0);
-				open.accept(new AiEvidence(location.getNode(), location.getTitle(), endpoint.detail(), "", endpoint.isTruncated()));
+			int index = evidenceSelector.getSelectedIndex();
+			if (index >= 0 && index < selectedEvidence.size()) {
+				open.accept(selectedEvidence.get(index));
 			}
 		});
+		relations.addActionListener(e -> {
+			if (selected() != null) {
+				tabs.setSelectedIndex(0);
+				inspect.accept(selected());
+			}
+		});
+		actions.add(relations);
 		actions.add(trace);
 		actions.add(source);
 		add(actions, BorderLayout.SOUTH);
@@ -149,6 +190,7 @@ public final class ApiCatalogPanel extends JPanel {
 	}
 
 	public void setReport(AnalysisReport report) {
+		this.report = report;
 		complete = report != null && report.isComplete();
 		endpoints = report == null ? List.of() : report.getApis();
 		if (report == null) {
@@ -162,7 +204,21 @@ public final class ApiCatalogPanel extends JPanel {
 	public void setBusy(boolean value) {
 		busy = value;
 		trace.setEnabled(!busy && complete && selected() != null);
+		relations.setEnabled(!busy && complete && selected() != null);
 		export.setEnabled(!busy && !endpoints.isEmpty());
+	}
+
+	public void selectEndpoint(String id) {
+		kind.setSelectedIndex(0);
+		search.setText("");
+		for (int i = 0; i < model.rows.size(); i++) {
+			if (model.rows.get(i).getId().equals(id)) {
+				int row = table.convertRowIndexToView(i);
+				table.setRowSelectionInterval(row, row);
+				table.scrollRectToVisible(table.getCellRect(row, 0, true));
+				return;
+			}
+		}
 	}
 
 	private ApiEndpoint selected() {
@@ -205,7 +261,21 @@ public final class ApiCatalogPanel extends JPanel {
 
 	private void selection() {
 		ApiEndpoint selected = selected();
-		detail.setText(selected == null ? AiText.str("api.empty") : selected.detail());
+		ApiDossier dossier = report == null || selected == null ? null : report.getApiDossier(selected.getId());
+		callPath.setPath(dossier == null ? null : dossier.getCallPath());
+		detail.setText(selected == null
+				? AiText.str("api.empty")
+				: selected.detail() + "\n\n"
+						+ (dossier == null ? AiText.str("api.relation.select") : dossier.describe()));
+		selectedEvidence = new java.util.ArrayList<>();
+		if (selected != null) {
+			selectedEvidence.addAll(selected.getSources());
+		}
+		if (dossier != null) {
+			selectedEvidence.addAll(dossier.getEvidence());
+		}
+		evidenceSelector.removeAllItems();
+		selectedEvidence.forEach(e -> evidenceSelector.addItem(e.getTitle()));
 		detail.setCaretPosition(0);
 		source.setEnabled(selected != null);
 		setBusy(busy);
@@ -217,6 +287,12 @@ public final class ApiCatalogPanel extends JPanel {
 	}
 
 	private void export() {
+		List<ApiDossier> dossiers = report == null
+				? List.of()
+				: endpoints.stream().map(e -> report.getApiDossier(e.getId()))
+						.filter(java.util.Objects::nonNull).collect(Collectors.toList());
+		String data = defaultGsonBuilder().create().toJson(Map.of("schemaVersion", 3, "scope", "static observations; not runtime verified",
+				"redacted", true, "endpoints", endpoints, "clientRelations", dossiers));
 		JFileChooser chooser = new JFileChooser();
 		chooser.setFileFilter(new FileNameExtensionFilter("JSON", "json"));
 		chooser.setSelectedFile(new java.io.File("api-inventory.json"));
@@ -229,7 +305,7 @@ public final class ApiCatalogPanel extends JPanel {
 			return;
 		}
 		try {
-			Files.writeString(path, json(endpoints), StandardCharsets.UTF_8);
+			Files.writeString(path, data, StandardCharsets.UTF_8);
 			summary.setText(AiText.str("analysis.exported") + path);
 		} catch (Exception e) {
 			JOptionPane.showMessageDialog(this, e.getMessage(), AiText.str("failed"), JOptionPane.ERROR_MESSAGE);

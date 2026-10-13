@@ -26,7 +26,8 @@ public final class McpClient implements AutoCloseable {
 	private McpClient(McpConnection configuration, Duration timeout) throws IOException {
 		configuration.validate();
 		this.configuration = configuration.copy();
-		transport = "stdio".equals(configuration.transport) ? new McpStdioTransport(configuration, timeout)
+		transport = "stdio".equals(configuration.transport)
+				? new McpStdioTransport(configuration, timeout)
 				: new McpHttpTransport(configuration, timeout);
 	}
 
@@ -94,8 +95,8 @@ public final class McpClient implements AutoCloseable {
 				}
 				size += tool.toString().length();
 				catalog.add(tool.deepCopy());
-				if (catalog.size() > 128 || size > 200_000) {
-					throw new IOException("MCP tool catalog exceeds limit (128 tools / 200000 characters)");
+				if (catalog.size() > 1024 || size > 2_000_000) {
+					throw new IOException("MCP tool catalog exceeds limit (1024 tools / 2000000 characters)");
 				}
 			}
 			cursor = McpJson.string(result, "nextCursor", null);

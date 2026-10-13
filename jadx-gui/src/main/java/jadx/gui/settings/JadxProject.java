@@ -317,11 +317,29 @@ public class JadxProject {
 		Path savePath = getProjectPath();
 		if (savePath != null) {
 			Path basePath = savePath.toAbsolutePath().getParent();
-			try (Writer writer = Files.newBufferedWriter(savePath, StandardCharsets.UTF_8)) {
-				buildGson(basePath).toJson(data, writer);
+			Path staged = null;
+			try {
+				staged = Files.createTempFile(basePath, ".jadx-project-", ".tmp");
+				try (Writer writer = Files.newBufferedWriter(staged, StandardCharsets.UTF_8)) {
+					buildGson(basePath).toJson(data, writer);
+				}
+				try {
+					Files.move(staged, savePath, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+							java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+				} catch (java.nio.file.AtomicMoveNotSupportedException e) {
+					Files.move(staged, savePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+				}
 				saved = true;
 			} catch (Exception e) {
 				throw new RuntimeException("Error saving project", e);
+			} finally {
+				if (staged != null) {
+					try {
+						Files.deleteIfExists(staged);
+					} catch (java.io.IOException e) {
+						LOG.warn("Failed to remove staged project", e);
+					}
+				}
 			}
 		}
 	}

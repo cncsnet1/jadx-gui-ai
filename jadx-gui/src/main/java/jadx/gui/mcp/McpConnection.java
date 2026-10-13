@@ -7,7 +7,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** Saved launch configuration. Secrets are referenced by environment variable, never copied into settings. */
+/**
+ * Saved launch configuration. Secrets are referenced by environment variable, never copied into
+ * settings.
+ */
 public final class McpConnection {
 
 	public String id = UUID.randomUUID().toString();
@@ -18,6 +21,7 @@ public final class McpConnection {
 	public Map<String, String> environment = new LinkedHashMap<>();
 	public String url = "";
 	public String bearerEnvironment = "";
+	public String toolProfile = "all";
 
 	public McpConnection copy() {
 		McpConnection copy = new McpConnection();
@@ -29,15 +33,20 @@ public final class McpConnection {
 		copy.environment = environment == null ? new LinkedHashMap<>() : new LinkedHashMap<>(environment);
 		copy.url = url;
 		copy.bearerEnvironment = bearerEnvironment;
+		copy.toolProfile = toolProfile;
 		return copy;
 	}
 
 	public void validate() {
+		if (!"all".equals(toolProfile) && !"rea-static".equals(toolProfile)) {
+			throw new IllegalArgumentException("Unknown MCP tool profile");
+		}
 		if (id == null || id.isBlank() || name == null || name.isBlank() || name.length() > 100) {
 			throw new IllegalArgumentException("MCP connection needs a name");
 		}
 		if ("stdio".equals(transport)) {
-			if (command == null || command.isBlank() || args == null || args.size() > 100 || args.stream().anyMatch(java.util.Objects::isNull)) {
+			if (command == null || command.isBlank() || args == null || args.size() > 100
+					|| args.stream().anyMatch(java.util.Objects::isNull)) {
 				throw new IllegalArgumentException("An executable and a JSON array of arguments are required");
 			}
 			if (environment == null || environment.size() > 50) {

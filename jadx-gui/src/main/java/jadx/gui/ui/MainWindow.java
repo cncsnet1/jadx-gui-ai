@@ -376,10 +376,6 @@ public class MainWindow extends JFrame {
 		if (deferWhileLoading(() -> showOpenDialog(mode))) {
 			return;
 		}
-		saveAll();
-		if (!ensureProjectIsSaved()) {
-			return;
-		}
 		FileDialogWrapper fileDialog = new FileDialogWrapper(this, mode);
 		List<Path> openPaths = fileDialog.show();
 		if (!openPaths.isEmpty()) {
@@ -448,7 +444,7 @@ public class MainWindow extends JFrame {
 					NLS.str("confirm.save_as_message", savePath.getFileName()),
 					NLS.str("confirm.save_as_title"),
 					JOptionPane.YES_NO_OPTION);
-			if (res == JOptionPane.NO_OPTION) {
+			if (res != JOptionPane.YES_OPTION) {
 				return;
 			}
 		}
@@ -538,6 +534,9 @@ public class MainWindow extends JFrame {
 			return;
 		}
 		saveAll();
+		if (!ensureProjectIsSaved()) {
+			return;
+		}
 		closeAll();
 		if (inputs.size() == 1 && openSingleFile(inputs.get(0), onFinish)) {
 			return;
@@ -772,7 +771,7 @@ public class MainWindow extends JFrame {
 		}
 		if (settings.getSaveOption() == JadxSettings.SAVEOPTION.ALWAYS) {
 			saveProject();
-			return true;
+			return project.isSaved();
 		}
 
 		JCheckBox remember = new JCheckBox(NLS.str("confirm.remember"));
@@ -794,7 +793,7 @@ public class MainWindow extends JFrame {
 					settings.sync();
 				}
 				saveProject();
-				return true;
+				return project.isSaved();
 
 			case JOptionPane.NO_OPTION:
 				if (remember.isSelected()) {
@@ -806,7 +805,7 @@ public class MainWindow extends JFrame {
 			case JOptionPane.CANCEL_OPTION:
 				return false;
 		}
-		return true;
+		return false;
 	}
 
 	public void updateProject(@NotNull JadxProject jadxProject) {
@@ -1769,6 +1768,10 @@ public class MainWindow extends JFrame {
 	}
 
 	public void showWorkspaceHome() {
+		if (isProjectLoaded()) {
+			showProjectAnalysis();
+			return;
+		}
 		if (!loading) {
 			workspaceChrome.showWorkspace();
 		}

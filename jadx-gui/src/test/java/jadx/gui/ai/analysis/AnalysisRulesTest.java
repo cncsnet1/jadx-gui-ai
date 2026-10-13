@@ -39,6 +39,20 @@ class AnalysisRulesTest {
 	}
 
 	@Test
+	void mixedCaseUrlCredentialsAreRedactedInSnapshotsAndExports() {
+		AnalysisReport report = new AnalysisReport();
+		new AnalysisRules(report).scan("HTTPS://alice:pass-one@api.example.test/login?token=private-value", "Config", null);
+		String value = report.getFindings().get(0).getValue();
+		assertThat(value).isEqualTo("HTTPS://[redacted]@api.example.test/login?[redacted]");
+		assertThat(report.markdown()).doesNotContain("alice", "pass-one", "private-value");
+		assertThat(defaultGsonBuilder().create().toJson(report)).doesNotContain("alice", "pass-one", "private-value");
+		assertThat(AnalysisRedactor.redact("http://alice:pass@word@api.example.test/login"))
+				.isEqualTo("http://[redacted]@api.example.test/login");
+		assertThat(AnalysisRedactor.redact("http://api.example.test?email=alice@example.test"))
+				.isEqualTo("http://api.example.test?[redacted]");
+	}
+
+	@Test
 	void longQuotedLiteralsAreMaskedBeforeSnippetTruncation() {
 		String original = "String x = \"https://api.example.test/v1?token=secret" + " smallvalue".repeat(20_000) + "\";";
 		String redacted = AnalysisRedactor.redact(original);
@@ -122,6 +136,20 @@ class AnalysisRulesTest {
 				.fromJson(json.replace("\"ruleVersion\": \"" + AnalysisReport.RULE_VERSION + "\"", "\"ruleVersion\": \"old\""),
 						ProjectData.class)
 				.getAnalysisReport().matches("fingerprint")).isFalse();
+	}
+
+	@Test
+	void incompleteAndUnfingerprintedReportsCannotBeReused() {
+		AnalysisReport report = new AnalysisReport();
+		report.setFingerprint("same-file");
+		assertThat(report.matches("same-file")).isFalse();
+		report.setComplete(true);
+		assertThat(report.matches("same-file")).isTrue();
+		assertThat(report.matches(null)).isFalse();
+		report.setFingerprint(""); // Directory inputs cannot be verified by the file fingerprint.
+		assertThat(report.matches("")).isFalse();
+		report.setFingerprint(null);
+		assertThat(report.matches(null)).isFalse();
 	}
 
 	@Test

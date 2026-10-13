@@ -48,6 +48,12 @@ public class JadxZipSecurity implements IJadxZipSecurity {
 	 */
 	@Override
 	public boolean isValidEntryName(String entryName) {
+		// ZIP names must be relative on every supported host, including Windows drive-relative paths.
+		// Based on upstream a74bb07d; retain canonical containment for existing filesystem links.
+		if (entryName == null || entryName.isEmpty() || entryName.startsWith("/") || entryName.startsWith("\\")
+				|| entryName.matches("(?s)^[A-Za-z]:.*")) {
+			return false;
+		}
 		if (entryName.contains("..")) { // quick pre-check
 			if (entryName.contains("../") || entryName.contains("..\\")) {
 				LOG.error("Path traversal attack detected in entry: '{}'", entryName);
@@ -57,7 +63,7 @@ public class JadxZipSecurity implements IJadxZipSecurity {
 		try {
 			File currentPath = CWD;
 			File canonical = new File(currentPath, entryName).getCanonicalFile();
-			if (isInSubDirectoryInternal(currentPath, canonical)) {
+			if (!canonical.equals(currentPath) && isInSubDirectoryInternal(currentPath, canonical)) {
 				return true;
 			}
 		} catch (Exception e) {

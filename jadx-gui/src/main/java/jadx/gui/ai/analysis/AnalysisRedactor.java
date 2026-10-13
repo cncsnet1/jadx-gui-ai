@@ -42,7 +42,7 @@ public final class AnalysisRedactor {
 	}
 
 	static String safeUrl(String url) {
-		String clean = url.replaceFirst("(https?://)[^/@]+@", "$1[redacted]@");
+		String clean = url.replaceFirst("(?i)(https?://)[^/?#\\s]+@", "$1[redacted]@");
 		int query = clean.indexOf('?');
 		if (query >= 0) {
 			clean = clean.substring(0, query) + "?[redacted]";

@@ -55,7 +55,8 @@ class McpClientTest {
 
 	@Test
 	void disconnectsOnTimeoutProcessExitAndOversizedStdout() throws Exception {
-		try (McpClient client = McpClient.connect(fixture("wait"), new AiCancellation(), Duration.ofSeconds(2))) {
+		// This deadline also includes starting the fixture JVM on a busy Windows runner.
+		try (McpClient client = McpClient.connect(fixture("wait"), new AiCancellation(), Duration.ofSeconds(5))) {
 			assertThatThrownBy(() -> client.call("echo", new JsonObject(), new AiCancellation()))
 					.isInstanceOf(IOException.class).hasMessageContaining("timed out");
 			assertThat(client.isClosed()).isTrue();
@@ -134,7 +135,7 @@ class McpClientTest {
 			config.transport = "http";
 			config.url = "http://127.0.0.1:" + server.getAddress().getPort() + "/mcp";
 			try (McpClient client = McpClient.connect(config, new AiCancellation())) {
-				assertThat(client.tools()).hasSize(7);
+				assertThat(client.tools()).hasSize(9);
 				assertThat(client.call("get_project", new JsonObject(), new AiCancellation()).toString()).contains("http-result");
 			}
 			assertThat(initialized).isTrue();

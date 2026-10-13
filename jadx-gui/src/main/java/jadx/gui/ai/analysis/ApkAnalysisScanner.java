@@ -67,6 +67,7 @@ public final class ApkAnalysisScanner {
 	public AnalysisReport scan(String fingerprint, AiCancellation token, Consumer<AnalysisReport> progress) throws InterruptedException {
 		AnalysisReport report = new AnalysisReport();
 		report.setFingerprint(fingerprint);
+		report.setEngineProfile(InvestigationService.profile(decompiler));
 		AnalysisRules rules = new AnalysisRules(report);
 		List<ClassNode> classes = new ArrayList<>(decompiler.getRoot().getClasses());
 		List<ResourceFile> resources = new ArrayList<>(decompiler.getResources());

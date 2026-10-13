@@ -56,7 +56,7 @@ class McpServerTest {
 		HttpResponse<String> response = post(request, server.token(), null, McpJson.VERSION);
 		assertThat(response.statusCode()).isEqualTo(200);
 		assertThat(JsonParser.parseString(response.body()).getAsJsonObject().getAsJsonObject("result").getAsJsonArray("tools"))
-				.hasSize(7);
+				.hasSize(9);
 		assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
 	}
 

@@ -58,6 +58,7 @@ public final class McpDialog extends JDialog {
 	private final JList<McpConnection> list = new JList<>(connections);
 	private final JTextField name = new JTextField();
 	private final JComboBox<String> transport = new JComboBox<>(new String[] { "stdio", "http" });
+	private final JComboBox<String> toolProfile = new JComboBox<>(new String[] { "all", "rea-static" });
 	private final JTextField command = new JTextField();
 	private final JTextArea args = new JTextArea("[]", 4, 25);
 	private final JTextArea env = new JTextArea("{}", 2, 25);
@@ -197,6 +198,8 @@ public final class McpDialog extends JDialog {
 		JPanel common = new JPanel(new GridBagLayout());
 		field(common, 0, "name", name);
 		field(common, 1, "transport", transport);
+		field(common, 2, "tool_profile", toolProfile);
+		toolProfile.setToolTipText(McpText.str("tool_profile_hint"));
 		JPanel stdio = new JPanel(new GridBagLayout());
 		field(stdio, 0, "command", command);
 		field(stdio, 1, "args", new JScrollPane(args));
@@ -231,7 +234,7 @@ public final class McpDialog extends JDialog {
 		connectionActions.add(save);
 		connectionActions.add(connect);
 		connectionActions.add(disconnect);
-		editing.addAll(List.of(name, transport, command, args, env, url, bearer, save, connect, disconnect));
+		editing.addAll(List.of(name, transport, toolProfile, command, args, env, url, bearer, save, connect, disconnect));
 		JPanel settings = new JPanel(new BorderLayout());
 		JScrollPane settingsScroll = new JScrollPane(form);
 		settingsScroll.setBorder(BorderFactory.createEmptyBorder());
@@ -275,6 +278,7 @@ public final class McpDialog extends JDialog {
 		if (connection != null) {
 			name.setText(connection.name);
 			transport.setSelectedItem(connection.transport);
+			toolProfile.setSelectedItem(connection.toolProfile);
 			command.setText(connection.command);
 			args.setText(gson.toJson(connection.args));
 			args.setCaretPosition(0);
@@ -301,6 +305,7 @@ public final class McpDialog extends JDialog {
 			McpConnection draft = current.copy();
 			draft.name = name.getText().trim();
 			draft.transport = (String) transport.getSelectedItem();
+			draft.toolProfile = (String) toolProfile.getSelectedItem();
 			draft.command = command.getText().trim();
 			if ("stdio".equals(draft.transport)) {
 				draft.args.clear();
@@ -332,7 +337,8 @@ public final class McpDialog extends JDialog {
 			refreshTools();
 			return true;
 		} catch (RuntimeException e) {
-			status.setText("Invalid configuration: " + (e instanceof IllegalArgumentException ? e.getMessage()
+			status.setText("Invalid configuration: " + (e instanceof IllegalArgumentException
+					? e.getMessage()
 					: "Check the argument array and environment mapping JSON"));
 			return false;
 		}
@@ -368,7 +374,8 @@ public final class McpDialog extends JDialog {
 				status.setText(McpText.str("connected"));
 			});
 			return true;
-		}, ignored -> { }, error -> failure(epoch, error));
+		}, ignored -> {
+		}, error -> failure(epoch, error));
 	}
 
 	private void refreshTools() {

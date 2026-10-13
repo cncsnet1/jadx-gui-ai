@@ -73,12 +73,17 @@ public final class AnalysisInvestigator {
 			}
 		}
 		CollectedContext collected = collectContext(selected, focus != null, token, status);
+		status.accept(AiText.str("analysis.explaining"));
+		return explain(report, goal, question, selected, collected, profile, token, focus == null ? candidates.size() : 1);
+	}
+
+	AiRecord explain(AnalysisReport report, AnalysisGoal goal, String question, List<AnalysisFinding> selected,
+			CollectedContext collected, AiProfile profile, AiCancellation token, int catalogSize) throws Exception {
 		List<AiEvidence> evidence = collected.evidence;
 		if (evidence.isEmpty()) {
 			throw new IllegalArgumentException(AiText.str("analysis.no_evidence"));
 		}
 		token.check();
-		status.accept(AiText.str("analysis.explaining"));
 		String prompt = AiText.str("analysis.prompt") + "\n" + goal + "\n" + question + "\n"
 				+ report.coverage() + "\n" + AiText.str("analysis.limits") + "\n" + String.join("\n", report.getGaps());
 		if (goal == AnalysisGoal.SECURITY) {
@@ -101,9 +106,9 @@ public final class AnalysisInvestigator {
 		String answer = client.stream(profile.getModel(), context.getMessages(), 0.2, profile.getOutputTokens(), token, ignored -> {
 		});
 		token.check();
-		AiRecord record = new AiRecord(goal + (focus == null ? "" : " · " + focus.getId()), answer, evidence, profile);
+		AiRecord record = new AiRecord(goal + (selected.size() == 1 ? " · " + selected.get(0).getId() : ""), answer, evidence, profile);
 		if (opportunities) {
-			record.setOpportunities(OpportunityAnalysis.parse(answer, selected, focus == null ? candidates.size() : 1, evidence,
+			record.setOpportunities(OpportunityAnalysis.parse(answer, selected, catalogSize, evidence,
 					collected.ownership, collected.codeSources));
 		}
 		return record;

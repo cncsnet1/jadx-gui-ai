@@ -43,6 +43,13 @@ public final class McpProjectTools {
 		tools.add(tool("search_code", "Literal case-insensitive source search, scanning at most 20 top-level classes per call. "
 				+ "Continue using nextOffset even when matches is empty. Class names are returned once per matching class.",
 				"query:string!,offset:integer"));
+		tools.add(tool("trace_calls",
+				"Read up to 32 outgoing bytecode call targets for an exact methodId. Static edges only; no runtime reachability claim.",
+				"className:string!,methodId:string!"));
+		tools.add(tool("inspect_api",
+				"Trace a Retrofit declaration to client construction, base URL, registered interceptors and up to four levels of incoming bytecode calls. "
+						+ "Call edges include exact methods, instruction offsets and coverage limits; not runtime reachability. Does not send requests.",
+				"className:string!,methodId:string!"));
 		return tools;
 	}
 
@@ -121,7 +128,7 @@ public final class McpProjectTools {
 		}
 	}
 
-	private JsonObject execute(String name, JsonObject args) {
+	private JsonObject execute(String name, JsonObject args) throws InterruptedException {
 		int offset = McpJson.integer(args, "offset", 0, 0, Integer.MAX_VALUE);
 		int limit = McpJson.integer(args, "limit", name.endsWith("_code") ? 20_000 : 100, 1,
 				name.endsWith("_code") ? 40_000 : 500);
@@ -172,7 +179,7 @@ public final class McpProjectTools {
 		}
 	}
 
-	private JsonObject classTool(String name, JsonObject args, int offset, int limit) {
+	private JsonObject classTool(String name, JsonObject args, int offset, int limit) throws InterruptedException {
 		String className = McpJson.string(args, "className", "");
 		JavaClass cls = decompiler.getClassesWithInners().stream()
 				.filter(c -> c.getRawName().equals(className)).findFirst().orElse(null);
@@ -209,6 +216,28 @@ public final class McpProjectTools {
 		}
 		if (name.equals("get_method_code")) {
 			return code(CodeUtils.extractMethodCode(((JavaMethod) node).getMethodNode(), cls.getCodeInfo()), offset, limit);
+		}
+		if (name.equals("trace_calls") || name.equals("inspect_api")) {
+			var local = new jadx.gui.ai.analysis.LocalAnalysisTools(decompiler);
+			var token = new jadx.gui.ai.AiCancellation();
+			if (name.equals("inspect_api")) {
+				return jadx.core.utils.GsonUtils.defaultGsonBuilder().create().toJsonTree(local.api((JavaMethod) node, token))
+						.getAsJsonObject();
+			}
+			var targets = local.calls(jadx.api.data.impl.JadxNodeRef.forJavaNode(node), token);
+			JsonArray edges = new JsonArray();
+			for (var target : targets.subList(0, Math.min(32, targets.size()))) {
+				JsonObject edge = new JsonObject();
+				edge.addProperty("className", target.getDeclaringClass());
+				edge.addProperty("methodId", target.getShortId());
+				edge.addProperty("resolved", local.resolve(target) != null);
+				edges.add(edge);
+			}
+			result.add("targets", edges);
+			result.addProperty("truncated", targets.size() > 32);
+			result.addProperty("coverage",
+					"One level of declared bytecode calls; reflection, native code and runtime dispatch unresolved.");
+			return result;
 		}
 		JsonArray items = new JsonArray();
 		List<JavaNode> usages = node.getUseIn();

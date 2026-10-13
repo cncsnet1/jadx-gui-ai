@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/cncsnet1/jadx-gui-ai/releases"><img src="https://img.shields.io/badge/preview-v2.0.0--beta.4-38b2ac?style=flat-square" alt="v2.0.0-beta.4"></a>
+  <a href="https://github.com/cncsnet1/jadx-gui-ai/releases"><img src="https://img.shields.io/badge/release-v2.0.0-38b2ac?style=flat-square" alt="v2.0.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-64748b?style=flat-square" alt="Apache-2.0"></a>
   <img src="https://img.shields.io/badge/desktop-Windows%20%7C%20macOS%20%7C%20Linux-6085cc?style=flat-square" alt="Windows, macOS, Linux">
   <img src="https://img.shields.io/badge/AI-cloud%20%2B%20local-8b72cf?style=flat-square" alt="Cloud and local models">
@@ -26,9 +26,11 @@
 
 不懂逆向、不知道该搜哪个类，也可以先从“这个应用里有什么”“登录怎么实现”“有哪些接口和敏感信息线索”开始。
 
-**v2.0.0-beta.4 新增面向渗透路径探索的应用调查工作区**：先梳理 API、入口和有用材料，再由 AI 读取相关代码、比较值得先尝试的入口，解释已有依据与待追踪环节。可以导出线索包，到其他工具继续调查；需要评估问题时再记录人工核查。未连接模型也能使用本地发现、API 清单与路线指南。原有源码助手、AI 搜索、人工复核与 MCP 继续保留。
+> **v2.0.0 正式版：** 打开 APK 自动生成本地应用报告；「应用报告 / API 地图 / 调查记录」三页导航；一键梳理 API 调用路径与 Retrofit / OkHttp 客户端；有预算、可保存和继续的 AI 调查；MCP 调用关系工具、REA 工具筛选和长结果分页。无需模型即可扫描与查看请求关系。见[本轮实现范围与后续设计](docs/UPSTREAM_REA_DESIGN.md)。
 
-> 下载 **v2.0.0-beta.4** 即可使用这套流程。本地发现无需配置模型；AI 深入调查使用你配置的连接。分析基于有限静态证据，不代表已确认漏洞或攻击成功率。
+**面向初学者的应用调查工作区**：先梳理 API、入口和有用材料，再由 AI 读取相关代码、比较值得先尝试的入口，解释已有依据与待追踪环节。可以导出线索包，到其他工具继续调查；需要评估问题时再记录人工核查。未连接模型也能使用本地发现、API 清单与路线指南。原有源码助手、AI 搜索、人工复核与 MCP 继续保留。
+
+> 下载 **v2.0.0** 即可使用这套流程。本地发现无需配置模型；AI 深入调查使用你配置的连接。分析基于有限静态证据，不代表已确认漏洞或攻击成功率。
 
 <table>
   <tr>
@@ -40,9 +42,25 @@
 
 ## 看见完整工作流
 
+### 报告先行，可继续调查
+
+APK 加载后自动生成本地报告，先解释值得看的线索与未知条件。三个主页面连接应用报告、API 地图与调查记录；查询调用路径和客户端关系无需模型，AI 深入调查则保留步骤和证据，支持取消后继续。
+
+![应用报告与调查入口](docs/images/application-report-graphite.png)
+
+[浅色主题](docs/images/application-report-light.png) · [调查历史与回答](docs/images/investigation-history-graphite.png)。这些快照来自实际 Swing 界面，使用演示样本和本机模拟模型；对应 v2.0.0。下文同时展示保留的调查、核查与源码工具，部分截图来自早期版本。
+
+### 从接口追到业务调用者
+
+在 API 地图选择接口声明或请求构造入口，点击「一键梳理接口」，查看最多四层的业务调用路径、客户端配置与拦截器。路径节点支持调用依据和源码跳转，无法继续追查的地方会标明原因。静态关系不等于已执行或可利用。
+
+![内置 API 调用路径](docs/images/api-call-path-graphite.png)
+
+[浅色主题](docs/images/api-call-path-light.png)。界面来自离线编译的演示样本，无需模型或额外分析引擎。调用路径基于有界静态证据。
+
 ### 从调查路径开始
 
-加载后默认选择“寻找渗透路径”。扫描完成后收起设置，展示敏感材料、API 声明、观察到的主机和入口线索；下方按调查方向组织起点。选中一条，即可查看建议追踪顺序、已有证据、未知条件与下一阶段材料。可以只找方向，无需先评级或提交漏洞结论。
+加载后自动生成应用报告，展示敏感材料、API 声明、观察到的主机和入口线索；在“全部线索”中可按调查方向浏览起点。选中一条，即可查看建议追踪顺序、已有证据、未知条件与下一阶段材料。可以只找方向，无需先评级或提交漏洞结论。
 
 ![找路径：调查起点、建议路线与下一阶段材料](docs/images/exploration-graphite.png)
 
@@ -70,7 +88,7 @@
 
 左侧导航连接开始页、工作区和代码助手；顶部 `Ctrl / ⌘ + K` 命令面板可以快速找到菜单功能。专注模式临时收起两侧面板，再次点击即可恢复布局。开始页、编辑器和 AI 侧栏使用统一的石墨灰与青绿色风格，同时提供浅色主题。
 
-“开始”页支持整页拖入文件。加载成功后默认进入 **应用调查**，可一键开始调查；左侧 **源码** 随时进入文件树和编辑器。打开文件本身不会调用模型，执行分析前可以关闭“自动用 AI 深入分析”，仅在本机收集线索。以下旧版截图展示 beta.3 的文件入口；新流程说明见[使用手册](docs/AI_WORKBENCH.md#面向目标的自动分析)。
+“开始”页支持整页拖入文件。加载成功后默认进入 **应用调查** 并自动生成本地报告；左侧 **源码** 随时进入文件树和编辑器。打开文件和恢复报告均不会调用模型；选择调查目标后才请求 AI 深入分析。以下旧版截图展示 beta.3 的文件入口；新流程说明见[使用手册](docs/AI_WORKBENCH.md#面向目标的自动分析)。
 
 ![全新工作空间首页](docs/images/workspace-home-graphite.png)
 
@@ -125,30 +143,30 @@
 
 > **同时提供双向 MCP。** 外部 AI 可以查询当前 JADX 项目的类、源码与引用；内置 AI 也可以连接 stdio / HTTP MCP 工具，逐次确认调用。入口为「工具 → MCP 连接中心」，详见 [MCP 使用说明](docs/MCP.md)。
 
-前往 [GitHub Releases](https://github.com/cncsnet1/jadx-gui-ai/releases) 下载 **v2.0.0-beta.4** 对应的平台包。前五种包均内置 **Eclipse Temurin 21**，无需另装 Java；AI 模型需自行连接。
+前往 [GitHub Latest Release](https://github.com/cncsnet1/jadx-gui-ai/releases/latest) 下载 **v2.0.0** 对应的平台包。前五种包均内置 **Eclipse Temurin 21**，无需另装 Java；AI 模型需自行连接。
 
 | 你的环境 | 发布包 | 启动入口 |
 | --- | --- | --- |
-| Windows x64 | `jadx-gui-ai-2.0.0-beta.4-windows-x64.zip` | 解压后双击 `jadx-gui-ai.exe` |
-| macOS · Apple Silicon | `jadx-gui-ai-2.0.0-beta.4-macos-arm64.zip` | 解压后打开 `JADX GUI AI.app` |
-| macOS · Intel | `jadx-gui-ai-2.0.0-beta.4-macos-x64.zip` | 解压后打开 `JADX GUI AI.app` |
-| Linux x64 | `jadx-gui-ai-2.0.0-beta.4-linux-x64.tar.gz` | `./bin/jadx-gui-ai` |
-| Linux ARM64 | `jadx-gui-ai-2.0.0-beta.4-linux-arm64.tar.gz` | `./bin/jadx-gui-ai` |
-| 自备 Java · 通用包 | `jadx-gui-ai-2.0.0-beta.4-portable.zip` | `bin/jadx-gui-ai` 或 `bin\jadx-gui-ai.bat` |
+| Windows x64 | `jadx-gui-ai-2.0.0-windows-x64.zip` | 解压后双击 `jadx-gui-ai.exe` |
+| macOS · Apple Silicon | `jadx-gui-ai-2.0.0-macos-arm64.zip` | 解压后打开 `JADX GUI AI.app` |
+| macOS · Intel | `jadx-gui-ai-2.0.0-macos-x64.zip` | 解压后打开 `JADX GUI AI.app` |
+| Linux x64 | `jadx-gui-ai-2.0.0-linux-x64.tar.gz` | `./bin/jadx-gui-ai` |
+| Linux ARM64 | `jadx-gui-ai-2.0.0-linux-arm64.tar.gz` | `./bin/jadx-gui-ai` |
+| 自备 Java · 通用包 | `jadx-gui-ai-2.0.0-portable.zip` | `bin/jadx-gui-ai` 或 `bin\jadx-gui-ai.bat` |
 
-通用包使用 64 位 Java 17+，推荐 Java 21。Linux 桌面包面向 glibc 环境，需要图形桌面；macOS 包尚未签名、公证，首次打开请按系统提示操作。各平台的实际验证范围见 [发布说明](docs/releases/v2.0.0-beta.4.md)。
+通用包使用 64 位 Java 17+，推荐 Java 21。Linux 桌面包面向 glibc 环境，需要图形桌面；macOS 包尚未签名、公证，首次打开请按系统提示操作。各平台的实际验证范围见 [发布说明](docs/releases/v2.0.0.md)。
 
 包内同时保留 JADX CLI：`bin/jadx`，Windows 使用 `bin\jadx.bat`。发布附件提供 `SHA256SUMS.txt` 和 `release-manifest.json`，用于核对下载内容与内置运行环境。
 
 ## 三分钟开始第一次分析
 
-以下流程随 v2.0.0-beta.4 发布；建议将新包完整解压到独立目录后启动。
+以下流程随 v2.0.0 发布；建议将新包完整解压到独立目录后启动。
 
-1. **打开文件**：拖入 APK、DEX、JAR 或 CLASS，加载后进入应用调查。
-2. **选择目标**：默认“寻找渗透路径”，也可选择“寻找敏感信息”“整理接口和请求”“核查潜在问题”等目标、补充具体问题，然后点“帮我分析这个应用”。
-3. **先看本地发现**：无需模型即可查看疑似敏感常量、地址、接口声明、配置与行为线索；结果按类别整理并保留证据位置。
-4. **让 AI 深入**：配置一次兼容 Chat Completions 的连接，之后可以自动挑选线索、读取定义和调用者；“AI 筛选优先入口”按条件、防护与成本整理值得先尝试的候选。项目分析复用“审计”任务连接；请求失败不会改用其他服务。
-5. **继续追踪与保存**：选中线索让 AI 追查，沿引用核对代码；导出线索包，到抓包、设备或后端测试环境继续调查。也可切换“做核查”记录结果，保存 `.jadx` 项目或导出报告。
+1. **打开文件**：拖入 APK、DEX、JAR 或 CLASS，加载完成后自动生成本地应用报告。
+2. **先看报告**：无需模型即可浏览接口、入口、疑似敏感常量、配置与行为线索，并查看证据位置与覆盖缺口。
+3. **一键梳理接口**：在 API 地图选择接口声明或请求构造入口，查看调用路径、客户端关系、拦截器与未解环节。
+4. **让 AI 继续追查**：配置一次兼容 Chat Completions 的连接，选择目标或线索，AI 会有预算地读取关联代码；调查过程保留步骤和证据，支持停止与继续。
+5. **保存与导出**：保存 `.jadx` 项目或导出报告、API 清单和线索包，到后续环境继续核对；需要评估问题时再记录人工核查。
 
 <details>
 <summary><b>连接信息应该怎么填？</b></summary>
@@ -170,14 +188,14 @@
 | 已实现 | 具体行为 |
 | --- | --- |
 | 工作台布局 | 首页、侧边导航、命令面板、可恢复的专注模式，深浅主题与紧凑侧栏 |
-| 目标分析 | 本地字节码/资源扫描、去重与分类；AI 选择最多 6 条线索，自动读取定义和调用者；可停止、复用同文件扫描、保存和导出 |
+| 目标分析 | 本地字节码/资源扫描、去重与分类；AI 从目录选择最多 3 条线索，每轮最多 6 次规划 / 12 次本地读取；可停止、保存和继续 |
 | AI 搜索 | 按类名语义发现入口；包 / 当前类范围、批次进度、匹配说明、取消与本地筛选 |
 | 源码上下文 | 当前方法、选区或类；主源码最多 12,000 字符，最多 3 个调用者各 3,000 字符，截断可见 |
 | 多连接与任务分配 | 独立保存服务与模型，支持临时切换、环境变量密钥、响应诊断 |
 | 可检查的请求 | 预览准确消息；流式输出可停止；切换项目会取消未完成请求 |
 | 调查台 | 单次分析最多 8 条结构化线索，引用片段核对，独立人工复核与笔记 |
 | 建议应用 | 先打开原生注释或重命名对话框；源码变化后要求重新分析 |
-| 项目与报告 | 每项目最多 100 条调查记录；Markdown / HTML 保留模型来源、快照、原始回答与人工复核 |
+| 项目与报告 | 应用调查最多 24 条可继续任务；原有源码助手最多 100 条记录；Markdown / HTML 保留模型来源、快照、原始回答与人工复核 |
 | JADX 基础能力 | 反编译、资源查看、全文搜索、查找用法、反混淆与原有调试能力 |
 | Java 自动预处理 | 配置本地 Java Deobfuscator 后，自动检测并尝试 ZKM / Allatori / Stringer 规则；查看处理报告，失败回退原输入。[配置与支持范围](docs/JAVA_DEOBFUSCATION.md) |
 
