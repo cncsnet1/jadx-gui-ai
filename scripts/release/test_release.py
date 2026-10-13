@@ -8,6 +8,8 @@ import unittest
 
 from build_release import Archive, add_docs, add_runtime, safe_name, shell_launcher, windows_launcher
 from verify_release import Reader, binary_arch
+from windows_launcher import utf8_manifest, ASM, CODE_PAGE
+import xml.etree.ElementTree as ET
 
 
 class ReleaseTests(unittest.TestCase):
@@ -87,8 +89,26 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn("-Xdock:", linux)
         self.assertIn('-Xdock:name="JADX GUI AI"', mac)
         self.assertIn('-cp "$ROOT/Resources/lib/app.jar" jadx.gui.JadxGUI "$@"', mac)
-        self.assertIn('"%APP_HOME%lib\\app.jar" jadx.cli.JadxCLI %*', windows_launcher("app.jar", False, True))
-        self.assertIn("%APP_HOME%jre\\bin\\java.exe", windows_launcher("app.jar", False, True))
+        self.assertIn('"%~dp0..\\jadx-cli.exe" %*', windows_launcher("app.jar", False, True))
+        self.assertIn('"%~dp0..\\jadx-gui-ai.exe" %*', windows_launcher("app.jar", True, True))
+        self.assertIn('"%APP_HOME%lib\\app.jar" jadx.cli.JadxCLI %*', windows_launcher("app.jar", False, False))
+
+    def test_utf8_manifest_preserves_privileges_dpi_and_supported_platforms(self):
+        original = b'''<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+          <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3"><security><requestedPrivileges>
+            <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+          </requestedPrivileges></security></trustInfo>
+          <application xmlns="urn:schemas-microsoft-com:asm.v3"><windowsSettings>
+            <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+          </windowsSettings></application>
+          <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1"><application><supportedOS Id="test"/></application></compatibility>
+        </assembly>'''
+        result = ET.fromstring(utf8_manifest(utf8_manifest(original)))
+        self.assertEqual(result.find(f".//{{{ASM}}}requestedExecutionLevel").get("level"), "asInvoker")
+        self.assertEqual(result.find(".//{http://schemas.microsoft.com/SMI/2016/WindowsSettings}dpiAwareness").text, "PerMonitorV2")
+        self.assertEqual(result.find(".//{urn:schemas-microsoft-com:compatibility.v1}supportedOS").get("Id"), "test")
+        self.assertEqual(len(result.findall(f".//{{{CODE_PAGE}}}activeCodePage")), 1)
+        self.assertEqual(result.find(f".//{{{CODE_PAGE}}}activeCodePage").text, "UTF-8")
 
     def test_native_architecture_detection(self):
         elf = bytearray(64)

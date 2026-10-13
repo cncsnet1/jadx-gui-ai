@@ -32,6 +32,8 @@ You do not need to know which class to search first. Start with a question: **Wh
 
 > **On the development branch, not in the v2.0.0 downloads:** install and enable the official MCP Server extension in Burp, then click **Connect Burp** in the API map to use the default local address. Successful settings are saved automatically; no proxy JAR, Java selection, or launch arguments are needed. The traffic view supports scoped history reads, candidate source correlations, saved metadata, and staging requests in Repeater. Protocol fixtures and Windows UI workflows have been tested; end-to-end testing with the real Burp extension is still pending. See the [Burp workflow guide (Chinese)](docs/BURP_WORKFLOW.md).
 
+The development Windows bundle also fixes startup from Chinese installation paths under an English system locale. Open the bundled EXE without changing system locale or configuring Java. The new launcher targets Windows 10 1903+ / Windows 11; see the [v2.1.0-dev preview notes (Chinese)](docs/releases/v2.1.0-dev.md).
+
 Local reports, API discovery, and call paths work **without a model**. The desktop packages include JADX and Java; basic analysis does not require Python, Node, or REA. AI features use a model service that you configure separately.
 
 | Start with a report | Follow the code | Keep your evidence |

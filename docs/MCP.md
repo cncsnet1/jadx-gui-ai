@@ -101,7 +101,7 @@ v2.0.0 正式版新增两个共用本地操作：`trace_calls(className, methodI
 - 当前实现 tools；不提供 resources、prompts、sampling、elicitation、OAuth 或无 GUI 启动的服务模式。旧版 HTTP+SSE 仅作为主分支客户端选项提供，不改变 JADX 共享服务端的传输方式。
 - 每次外部请求最多 60 秒，消息限制约 1 MB；工具发现目录最多 1,024 个工具、累计 2,000,000 字符（单条传输消息仍限约 1 MB）。AI 目录保留最多 63 个外部工具、63,000 字符，并增加一个本地分页工具。
 - 一次 AI 分析至多 4 轮工具调用、8 次执行（本地分页读取也计数）。短结果直接返回；超过 12,000 字符的文本/结构化结果在本次运行内完整保留，并返回有效 JSON 页封装。模型可用 `mcp_read_result` 和 `nextOffset` 每次读取最多 3,000 个 UTF-16 字符；分页不再调用外部服务。最多保留 8 份、合计 2,000,000 字符，超出明确提示请求更小结果。引用不跨运行保存。开启 MCP 时使用非流式工具对话，完成后显示回答。
-- stdio 取消或超时会断开并终止子进程；SSE 取消或超时会关闭持久流，之后需要手动重连。SSE 初次建立连接最多等待 10 秒。取消不能撤销外部服务已经执行的操作。
+- stdio 取消或超时会断开并终止子进程；SSE 取消或超时会关闭持久流，之后需要手动重连。首次 SSE 握手最多等待 10 秒，后续工具发现与请求仍使用每次 60 秒时限。取消不能撤销外部服务已经执行的操作。
 - 运行外部 MCP 程序会赋予它当前用户的操作系统权限；环境变量过滤不是沙箱。仅连接你信任的服务。
 
 实现依据：[MCP 生命周期](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)、[传输规范](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)、[工具规范](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)。

@@ -45,22 +45,36 @@ jobs:
           "JADX_VERSION=$version" >> $env:GITHUB_ENV
           "PYTHONIOENCODING=utf-8" >> $env:GITHUB_ENV
       - name: Test and build application
-        run: .\gradlew.bat --no-daemon -PbundleJRE :jadx-plugins:jadx-java-deobf:test :jadx-plugins:jadx-java-input:test --tests jadx.plugins.input.java.NestedArchiveTest :jadx-gui:test :jadx-gui:shadowJar :jadx-gui:createExe
+        run: .\gradlew.bat --no-daemon :jadx-plugins:jadx-java-deobf:test :jadx-plugins:jadx-java-input:test --tests jadx.plugins.input.java.NestedArchiveTest :jadx-plugins-tools:test :jadx-gui:test :jadx-gui:shadowJar
       - name: Test packaging code
         run: python -m unittest discover -s scripts/release -p "test_*.py"
       - name: Assemble six platform archives
         run: python scripts/release/build_release.py --version $env:JADX_VERSION
       - name: Verify archives
         run: python scripts/release/verify_release.py "build/releases/$env:JADX_VERSION"
-      - name: Smoke test Windows runtime and CLI
+      - name: Smoke test Windows launchers with Unicode paths and no external Java
         run: |
           $archive = "build/releases/$env:JADX_VERSION/jadx-gui-ai-$env:JADX_VERSION-windows-x64.zip"
-          Expand-Archive -LiteralPath $archive -DestinationPath 'build/release-smoke'
-          $bundle = "build/release-smoke/jadx-gui-ai-$env:JADX_VERSION-windows-x64"
-          & "$bundle/jre/bin/java.exe" -version
-          if ($LASTEXITCODE -ne 0) { throw 'Bundled Java did not start' }
+          $testRoot = 'build/release-smoke/中文 路径'
+          Expand-Archive -LiteralPath $archive -DestinationPath $testRoot
+          $bundle = "$testRoot/jadx-gui-ai-$env:JADX_VERSION-windows-x64"
+          New-Item -ItemType Directory -Path 'build/release-smoke/input' -Force | Out-Null
+          'public class ReleaseSample { public int answer() { return 42; } }' | Set-Content 'build/release-smoke/input/ReleaseSample.java' -Encoding ascii
+          & "$env:JAVA_HOME/bin/javac.exe" 'build/release-smoke/input/ReleaseSample.java'
+          if ($LASTEXITCODE -ne 0) { throw 'Smoke fixture did not compile' }
+          Copy-Item 'build/release-smoke/input/ReleaseSample.class' "$testRoot/中文 输入.class"
+          $env:JAVA_HOME = $null
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          $env:JADX_CONFIG_DIR = [IO.Path]::GetFullPath("$testRoot/全新配置")
+          $env:JADX_CACHE_DIR = [IO.Path]::GetFullPath("$testRoot/缓存")
+          New-Item -ItemType Directory -Path "$env:JADX_CONFIG_DIR/plugins" -Force | Out-Null
+          [IO.File]::WriteAllText("$env:JADX_CONFIG_DIR/plugins/plugins.json", '{"installed":[', [Text.UTF8Encoding]::new($false))
           $version = & "$bundle/bin/jadx.bat" --version
           if ($LASTEXITCODE -ne 0 -or $version -notmatch [regex]::Escape($env:JADX_VERSION)) { throw 'CLI version check failed' }
+          & "$bundle/bin/jadx.bat" -d "$testRoot/反编译 结果" "$testRoot/中文 输入.class"
+          if ($LASTEXITCODE -ne 0) { throw 'Unicode input or plugin recovery failed' }
+          if (-not (Test-Path -LiteralPath "$testRoot/反编译 结果/sources/defpackage/ReleaseSample.java")) { throw 'Decompiled source missing' }
+          if (@(Get-ChildItem "$env:JADX_CONFIG_DIR/plugins" -Filter '*.bak').Count -ne 1) { throw 'Plugin registry backup missing' }
       - name: Upload release assets
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

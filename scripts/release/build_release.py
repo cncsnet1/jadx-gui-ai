@@ -1,6 +1,7 @@
 """Create self-contained desktop archives without running foreign-platform binaries.
 
-Python 3.11+, curl, a versioned GUI shadow JAR and the Launch4j EXE are required.
+Python 3.11+, curl and a versioned GUI shadow JAR are required.
+Windows archives also require a Windows build host with JDK 17+ (jpackage).
 Runtime files are copied directly between archives so Unix modes and symlinks
 survive even when the release is assembled on Windows.
 """
@@ -20,6 +21,7 @@ import tarfile
 import zipfile
 
 from download_runtimes import download_all, sha256
+from windows_launcher import build_windows_launchers
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 JVM = ('-Xms128M -XX:MaxRAMPercentage=70.0 -Dfile.encoding=UTF-8 '
@@ -131,12 +133,12 @@ exec "$JAVA" {JVM} {('-Dapple.awt.application.name="JADX GUI AI" -Xdock:name="JA
 
 
 def windows_launcher(jar, gui, bundled):
+    if bundled:
+        executable = "jadx-gui-ai.exe" if gui else "jadx-cli.exe"
+        return (f'@echo off\nsetlocal\n"%~dp0..\\{executable}" %*\nexit /b %ERRORLEVEL%\n').replace("\n", "\r\n")
     exe = "javaw.exe" if gui else "java.exe"
     command = f'start "JADX GUI AI" /B "%JAVA_EXE%"' if gui else '"%JAVA_EXE%"'
-    if bundled:
-        resolve = f'set "JAVA_EXE=%APP_HOME%jre\\bin\\{exe}"'
-    else:
-        resolve = f'''set "JAVA_EXE={exe}"
+    resolve = f'''set "JAVA_EXE={exe}"
 if defined JAVA_HOME set "JAVA_EXE=%JAVA_HOME%\\bin\\{exe}"'''
     main = "jadx.gui.JadxGUI" if gui else "jadx.cli.JadxCLI"
     return f'''@echo off
@@ -183,7 +185,7 @@ def add_docs(archive, prefix, version, platform, runtime):
                     f"Runtime upstream: {runtime['source']}\n" if platform != "portable" else ""))
 
 
-def build_one(out, version, platform, jar, exe, runtime, runtime_file, stamp):
+def build_one(out, version, platform, jar, runtime, runtime_file, stamp):
     base = f"jadx-gui-ai-{version}-{platform}"
     path = out / (base + (".tar.gz" if platform.startswith("linux-") else ".zip"))
     partial = path.with_name(path.name + ".building" + path.suffix)
@@ -219,9 +221,11 @@ def build_one(out, version, platform, jar, exe, runtime, runtime_file, stamp):
                 archive.text(f"{base}/bin/jadx-gui-ai.bat", windows_launcher(jar.name, True, platform != "portable"))
                 archive.text(f"{base}/bin/jadx.bat", windows_launcher(jar.name, False, platform != "portable"))
             if platform == "windows-x64":
-                archive.file(f"{base}/jadx-gui-ai.exe", exe, 0o755)
+                for name, data in build_windows_launchers(jar, version, JVM.split()).items():
+                    archive.text(f"{base}/{name}", data, 0o755 if name.endswith(".exe") else 0o644)
         add_docs(archive, base, version, platform, runtime)
         archive.text(f"{base}/BUILD-INFO.json", json.dumps({"version": version, "platform": platform,
+                     "launcher": "jpackage-utf8" if platform == "windows-x64" else None,
                      "jar_sha256": sha256(jar), "runtime": None if platform == "portable" else {
                          "vendor": runtime["vendor"], "version": runtime["version"], **runtime["runtimes"][platform]}}, indent=2) + "\n")
     finally:
@@ -235,7 +239,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", required=True)
     parser.add_argument("--jar", type=pathlib.Path)
-    parser.add_argument("--exe", type=pathlib.Path)
     parser.add_argument("--out", type=pathlib.Path)
     parser.add_argument("--cache", type=pathlib.Path, default=ROOT / ".gradle/release-runtimes")
     parser.add_argument("--platform", action="append", choices=["windows-x64", "macos-x64", "macos-arm64", "linux-x64", "linux-arm64", "portable"])
@@ -244,17 +247,14 @@ def main():
         parser.error("Use a semantic version without the v prefix")
     version = args.version
     jar = args.jar or ROOT / f"jadx-gui/build/libs/jadx-gui-{version}-all.jar"
-    exe = args.exe or ROOT / f"jadx-gui/build/launch4j/jadx-gui-{version}.exe"
     if not jar.is_file():
         parser.error(f"Build :jadx-gui:shadowJar with JADX_VERSION={version} first: {jar}")
     platforms = args.platform or ["windows-x64", "macos-x64", "macos-arm64", "linux-x64", "linux-arm64", "portable"]
-    if "windows-x64" in platforms and not exe.is_file():
-        parser.error(f"Build :jadx-gui:createExe with -PbundleJRE first: {exe}")
     out = (args.out or ROOT / f"build/releases/{version}").resolve()
     out.mkdir(parents=True, exist_ok=True)
     runtime, paths = download_all(args.cache, platforms)
     stamp = int(os.environ.get("SOURCE_DATE_EPOCH", str(int(datetime.datetime.now(datetime.timezone.utc).timestamp()))))
-    artifacts = [build_one(out, version, target, jar, exe, runtime, paths.get(target), stamp) for target in platforms]
+    artifacts = [build_one(out, version, target, jar, runtime, paths.get(target), stamp) for target in platforms]
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     dirty = bool(subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT, text=True).strip())
     metadata = {"version": version, "source_commit": commit, "source_worktree_dirty": dirty,

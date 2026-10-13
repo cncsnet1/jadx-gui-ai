@@ -117,8 +117,20 @@ def verify(directory):
             elif platform == "windows-x64":
                 runtime = f"{root}/jre"
                 assert binary_arch(reader.read(f"{runtime}/bin/java.exe")) == "x64"
-                assert binary_arch(reader.read(f"{root}/jadx-gui-ai.exe")) in ("x86", "x64")
-                assert b"jre\\bin\\java.exe" in reader.read(f"{root}/bin/jadx.bat")
+                if info.get("launcher") == "jpackage-utf8":
+                    for name, main in (("jadx-gui-ai", b"jadx.gui.JadxGUI"), ("jadx-cli", b"jadx.cli.JadxCLI")):
+                        executable = reader.read(f"{root}/{name}.exe")
+                        assert binary_arch(executable) == "x64"
+                        assert b"activeCodePage" in executable and b">UTF-8<" in executable
+                        config = reader.read(f"{root}/app/{name}.cfg")
+                        assert b"app.runtime=$APPDIR\\..\\jre" in config and main in config
+                        assert b"$APPDIR\\..\\lib\\" in config
+                    assert b"jadx-cli.exe" in reader.read(f"{root}/bin/jadx.bat")
+                    assert f"{root}/docs/licenses/windows-launcher/LICENSE" in reader.names
+                else:
+                    assert info.get("launcher") is None
+                    assert binary_arch(reader.read(f"{root}/jadx-gui-ai.exe")) in ("x86", "x64")
+                    assert b"jre\\bin\\java.exe" in reader.read(f"{root}/bin/jadx.bat")
             elif platform.startswith("linux-"):
                 runtime = f"{root}/jre"
                 assert binary_arch(reader.read(f"{runtime}/bin/java")) == platform.split("-")[1]

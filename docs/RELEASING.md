@@ -4,11 +4,11 @@
 
 ## 本地构建
 
-在仓库根目录运行，需要 JDK 17+（流水线使用 JDK 21）、Python 3.11+、curl。Windows 原生启动器由仓库现有 Launch4j 任务生成。
+在仓库根目录运行，需要完整 JDK 17+（含 jpackage，流水线使用 JDK 21）、Python 3.11+、curl。Windows 包在 Windows 主机上组装，打包脚本自动生成 GUI / CLI 原生启动器。
 
 ```powershell
 $env:JADX_VERSION = '2.0.0'
-.\gradlew.bat -PbundleJRE :jadx-plugins:jadx-java-deobf:test :jadx-plugins:jadx-java-input:test --tests jadx.plugins.input.java.NestedArchiveTest :jadx-gui:test :jadx-gui:shadowJar :jadx-gui:createExe
+.\gradlew.bat :jadx-plugins:jadx-java-deobf:test :jadx-plugins:jadx-java-input:test --tests jadx.plugins.input.java.NestedArchiveTest :jadx-plugins-tools:test :jadx-gui:test :jadx-gui:shadowJar
 python -m unittest discover -s scripts/release -p "test_*.py"
 python scripts/release/build_release.py --version $env:JADX_VERSION
 python scripts/release/verify_release.py build/releases/2.0.0
@@ -24,7 +24,9 @@ export JADX_VERSION=2.0.0
 python scripts/release/build_release.py --version "$JADX_VERSION" --platform linux-x64 --platform portable
 ```
 
-只有 Windows 包需要预先生成 `createExe`；其他目标不需要 EXE。跨平台包装直接复制运行环境归档中的文件和元数据，保留 Unix 执行位与符号链接，不会尝试在当前主机上执行其他系统的程序。
+Windows 包不再使用 `createExe` 输出或 `--exe` 参数；`build_release.py` 用当前构建 JDK 的 jpackage 生成原生启动器，再为生成的 EXE 添加进程级 UTF-8 清单。随包 JRE 保持供应商原始内容，不修改系统区域、注册表或用户 Java 环境。jpackage 许可证与构建 JDK 元数据保存在 `docs/licenses/windows-launcher`。其他目标继续直接复制运行环境归档中的文件和元数据，保留 Unix 执行位与符号链接，不执行其他系统的程序。
+
+UTF-8 清单用于解决英文系统区域下中文安装路径被旧式 Java 启动过程转成 `?` 的问题，依赖 Windows 10 1903+ / Windows 11 的[进程级 UTF-8 支持](https://learn.microsoft.com/en-us/windows/apps/design/globalizing/use-utf8-code-page)。验收应使用带中文和空格的目录、清空 `JAVA_HOME` 并移除 PATH 中的 Java；通过 `jadx-gui-ai.exe` 或 `bin/jadx.bat` 启动。直接执行供应商的 `jre/bin/java.exe` 不经过该启动器。
 
 ## 验证范围
 

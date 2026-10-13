@@ -68,7 +68,7 @@ Repeater 转交仅支持收到的完整、小于等于 24,000 字符的 ASCII HT
 
 适配接口依据 [PortSwigger MCP 源码快照](https://github.com/PortSwigger/mcp-server/tree/642e6fa31c63db3886a353fcd7ed62037e0ceed5)：历史序列化格式、分页参数、截断标记和 Repeater 工具参数。保留 GPL 项目为独立外部服务，没有将其实现复制或打包到本项目。
 
-内置直连依据[官方扩展的 SSE 连接方式](https://github.com/PortSwigger/mcp-server)和 [MCP 2024-11-05 传输规范](https://modelcontextprotocol.io/specification/2024-11-05/basic/transports)。初次建立连接最多等待 10 秒；消息端点必须与配置地址同源，不跟随重定向。
+内置直连依据[官方扩展的 SSE 连接方式](https://github.com/PortSwigger/mcp-server)和 [MCP 2024-11-05 传输规范](https://modelcontextprotocol.io/specification/2024-11-05/basic/transports)。首次 SSE 握手最多等待 10 秒；之后的工具发现与请求各有 60 秒时限。消息端点必须与配置地址同源，不跟随重定向。
 
 验证覆盖空连接配置下的一键直连、解析与异常数据、范围冲突、相对路径、占位符、持久化脱敏、证据上限、实际 Java stdio 子进程与 HTTP+SSE 流、分页、超时、取消和 Windows Swing 操作。协议样本使用模拟 Burp 服务，不发送真实目标请求；完整 Burp 扩展与手机抓包的实机联调尚未完成，不宣称所有 Burp 版本兼容。
 
