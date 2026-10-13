@@ -1,5 +1,7 @@
 # API 清单与安全分析设计
 
+> 主分支开发功能：新增「实际流量」与 Burp 历史关联、证据摘要、Repeater 转交，API 导出升级为 schemaVersion 4；下面的 v2.0.0 描述保留已发布范围。详见 [Burp 联动说明](BURP_WORKFLOW.md)。
+
 > **v2.0.0 正式版：** 入口改为「应用调查 → API 地图」，新增无需模型的「一键梳理接口」。对 Retrofit 声明按需解析最多 12 个使用方顶层类、每类最多 80 个方法，单类源码上限 200,000 字符，最多保留 8 条独立客户端关系与 16 份来源。支持直线 Retrofit / OkHttp Builder 构造与局部常量，区分多个客户端和 build 时的配置快照；动态地址、分支、未知辅助函数、匿名拦截器等明确列为未解关系。JSON 导出升级为 schemaVersion 3，并保留原有 endpoints 字段，新增 clientRelations。以下旧清单说明继续适用于基本提取。
 
 

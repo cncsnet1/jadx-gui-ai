@@ -58,7 +58,7 @@ public final class McpDialog extends JDialog {
 	private final JList<McpConnection> list = new JList<>(connections);
 	private final JTextField name = new JTextField();
 	private final JComboBox<String> transport = new JComboBox<>(new String[] { "stdio", "http" });
-	private final JComboBox<String> toolProfile = new JComboBox<>(new String[] { "all", "rea-static" });
+	private final JComboBox<String> toolProfile = new JComboBox<>(new String[] { "all", "rea-static", "burp-readonly" });
 	private final JTextField command = new JTextField();
 	private final JTextArea args = new JTextArea("[]", 4, 25);
 	private final JTextArea env = new JTextArea("{}", 2, 25);

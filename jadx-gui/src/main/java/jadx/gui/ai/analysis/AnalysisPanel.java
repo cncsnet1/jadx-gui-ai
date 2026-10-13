@@ -110,7 +110,7 @@ public final class AnalysisPanel extends JPanel {
 		apiCatalog = new ApiCatalogPanel(this::open, endpoint -> {
 			goal.setSelectedItem(AnalysisGoal.NETWORK);
 			analyze(endpoint.asFinding());
-		}, this::inspectApi);
+		}, this::inspectApi, window, () -> window.getProject().setAnalysisReport(report));
 		assessment = new AssessmentPanel(this::open, (finding, selectedGoal) -> {
 			goal.setSelectedItem(selectedGoal);
 			analyze(finding);
@@ -445,6 +445,7 @@ public final class AnalysisPanel extends JPanel {
 			displayed = completed.getAnalysis();
 			if (report != previous) {
 				report.carryReviews(previous);
+				report.carryTrafficEvidence(previous);
 				if (previous != null && !report.getFingerprint().isBlank()
 						&& report.getFingerprint().equals(previous.getFingerprint())) {
 					previous.getInvestigations().forEach(report::putInvestigation);
@@ -604,6 +605,7 @@ public final class AnalysisPanel extends JPanel {
 	public void close() {
 		retainCancelled();
 		runner.close();
+		apiCatalog.close();
 	}
 
 	public void refreshTheme() {

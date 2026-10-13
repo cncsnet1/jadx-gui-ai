@@ -38,7 +38,7 @@ public final class McpConnection {
 	}
 
 	public void validate() {
-		if (!"all".equals(toolProfile) && !"rea-static".equals(toolProfile)) {
+		if (!"all".equals(toolProfile) && !"rea-static".equals(toolProfile) && !"burp-readonly".equals(toolProfile)) {
 			throw new IllegalArgumentException("Unknown MCP tool profile");
 		}
 		if (id == null || id.isBlank() || name == null || name.isBlank() || name.length() > 100) {

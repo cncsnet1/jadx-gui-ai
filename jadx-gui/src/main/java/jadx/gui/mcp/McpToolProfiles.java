@@ -16,6 +16,10 @@ public final class McpToolProfiles {
 	}
 
 	public static List<JsonObject> select(String profile, List<JsonObject> catalog) {
+		if ("burp-readonly".equals(profile)) {
+			return catalog.stream().filter(t -> Set.of("get_proxy_http_history", "get_proxy_http_history_regex")
+					.contains(McpJson.string(t, "name", ""))).collect(Collectors.toList());
+		}
 		if (!"rea-static".equals(profile)) {
 			return catalog;
 		}

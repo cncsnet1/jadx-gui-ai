@@ -33,6 +33,9 @@ import javax.swing.table.DefaultTableCellRenderer;
 
 import jadx.gui.ai.AiEvidence;
 import jadx.gui.ai.AiText;
+import jadx.gui.burp.BurpText;
+import jadx.gui.burp.BurpTrafficPanel;
+import jadx.gui.ui.MainWindow;
 import jadx.gui.utils.ui.WorkbenchUi;
 
 import static jadx.core.utils.GsonUtils.defaultGsonBuilder;
@@ -53,6 +56,7 @@ public final class ApiCatalogPanel extends JPanel {
 	private final JTextArea evidenceText = new JTextArea();
 	private final javax.swing.JTabbedPane tabs = new javax.swing.JTabbedPane();
 	private final CallPathPanel callPath;
+	private final BurpTrafficPanel traffic;
 	private List<AiEvidence> selectedEvidence = List.of();
 	private AnalysisReport report;
 	private List<ApiEndpoint> endpoints = List.of();
@@ -66,9 +70,16 @@ public final class ApiCatalogPanel extends JPanel {
 	}
 
 	public ApiCatalogPanel(Consumer<AiEvidence> open, Consumer<ApiEndpoint> investigate, Consumer<ApiEndpoint> inspect) {
+		this(open, investigate, inspect, null, () -> {
+		});
+	}
+
+	public ApiCatalogPanel(Consumer<AiEvidence> open, Consumer<ApiEndpoint> investigate, Consumer<ApiEndpoint> inspect,
+			MainWindow window, Runnable changed) {
 		super(new BorderLayout(0, 8));
 		setOpaque(false);
 		callPath = new CallPathPanel(open);
+		traffic = window == null ? null : new BurpTrafficPanel(window, open, changed);
 		JPanel top = WorkbenchUi.transparent();
 		JPanel controls = WorkbenchUi.transparent();
 		kind.addItem(AiText.str("api.all"));
@@ -152,7 +163,10 @@ public final class ApiCatalogPanel extends JPanel {
 		evidencePanel.add(evidenceSelector, BorderLayout.NORTH);
 		evidencePanel.add(new JScrollPane(evidenceText));
 		tabs.addTab(AiText.str("api.relation.evidence"), evidencePanel);
-		tabs.addChangeListener(e -> source.setVisible(tabs.getSelectedIndex() != 0));
+		if (traffic != null) {
+			tabs.addTab(BurpText.str("title"), traffic);
+		}
+		tabs.addChangeListener(e -> source.setVisible(tabs.getSelectedIndex() != 0 && tabs.getSelectedComponent() != traffic));
 		source.setVisible(false);
 		details.add(tabs);
 		JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(table), details);
@@ -185,6 +199,7 @@ public final class ApiCatalogPanel extends JPanel {
 		actions.add(relations);
 		actions.add(trace);
 		actions.add(source);
+		tabs.addChangeListener(e -> actions.setVisible(tabs.getSelectedComponent() != traffic));
 		add(actions, BorderLayout.SOUTH);
 		refresh();
 	}
@@ -203,6 +218,9 @@ public final class ApiCatalogPanel extends JPanel {
 
 	public void setBusy(boolean value) {
 		busy = value;
+		if (traffic != null) {
+			traffic.setParentBusy(value);
+		}
 		trace.setEnabled(!busy && complete && selected() != null);
 		relations.setEnabled(!busy && complete && selected() != null);
 		export.setEnabled(!busy && !endpoints.isEmpty());
@@ -262,6 +280,9 @@ public final class ApiCatalogPanel extends JPanel {
 	private void selection() {
 		ApiEndpoint selected = selected();
 		ApiDossier dossier = report == null || selected == null ? null : report.getApiDossier(selected.getId());
+		if (traffic != null) {
+			traffic.setContext(report, selected, dossier);
+		}
 		callPath.setPath(dossier == null ? null : dossier.getCallPath());
 		detail.setText(selected == null
 				? AiText.str("api.empty")
@@ -291,8 +312,10 @@ public final class ApiCatalogPanel extends JPanel {
 				? List.of()
 				: endpoints.stream().map(e -> report.getApiDossier(e.getId()))
 						.filter(java.util.Objects::nonNull).collect(Collectors.toList());
-		String data = defaultGsonBuilder().create().toJson(Map.of("schemaVersion", 3, "scope", "static observations; not runtime verified",
-				"redacted", true, "endpoints", endpoints, "clientRelations", dossiers));
+		String data = defaultGsonBuilder().create().toJson(Map.of("schemaVersion", 4,
+				"scope", "static declarations and observed HTTP metadata; correlations do not prove code execution or vulnerabilities",
+				"redacted", true, "endpoints", endpoints, "clientRelations", dossiers,
+				"trafficEvidence", report == null ? List.of() : report.trafficEvidenceExport()));
 		JFileChooser chooser = new JFileChooser();
 		chooser.setFileFilter(new FileNameExtensionFilter("JSON", "json"));
 		chooser.setSelectedFile(new java.io.File("api-inventory.json"));
@@ -309,6 +332,12 @@ public final class ApiCatalogPanel extends JPanel {
 			summary.setText(AiText.str("analysis.exported") + path);
 		} catch (Exception e) {
 			JOptionPane.showMessageDialog(this, e.getMessage(), AiText.str("failed"), JOptionPane.ERROR_MESSAGE);
+		}
+	}
+
+	public void close() {
+		if (traffic != null) {
+			traffic.close();
 		}
 	}
 

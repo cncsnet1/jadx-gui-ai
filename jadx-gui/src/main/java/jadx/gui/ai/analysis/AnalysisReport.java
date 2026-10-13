@@ -29,6 +29,7 @@ public final class AnalysisReport {
 	private Map<String, AssessmentReview> reviews = new LinkedHashMap<>();
 	private List<InvestigationRun> investigations = new ArrayList<>();
 	private Map<String, ApiDossier> apiDossiers = new LinkedHashMap<>();
+	private List<ApiTrafficEvidence> trafficEvidence = new ArrayList<>();
 	private transient java.util.Map<String, ApiEndpoint> apiIndex;
 	private transient java.util.Map<ApiEndpoint.Origin, Integer> apiCounts;
 
@@ -69,6 +70,54 @@ public final class AnalysisReport {
 
 	public boolean hasEvidence() {
 		return !findings.isEmpty() || !apis.isEmpty();
+	}
+
+	public List<ApiTrafficEvidence> getTrafficEvidence() {
+		return Collections.unmodifiableList(trafficEvidence);
+	}
+
+	public void putTrafficEvidence(ApiEndpoint endpoint, ApiTrafficEvidence evidence) {
+		if (!complete || !evidence.belongsTo(endpoint) || apis.stream().noneMatch(a -> a == endpoint)) {
+			throw new IllegalArgumentException(AiText.str("assessment.stale"));
+		}
+		for (int i = 0; i < trafficEvidence.size(); i++) {
+			if (trafficEvidence.get(i).identity().equals(evidence.identity())) {
+				trafficEvidence.set(i, evidence);
+				return;
+			}
+		}
+		if (trafficEvidence.size() >= 200 || trafficEvidence.stream().filter(e -> e.belongsTo(endpoint)).count() >= 20) {
+			throw new IllegalStateException(jadx.gui.burp.BurpText.str("evidence_limit"));
+		}
+		trafficEvidence.add(evidence);
+	}
+
+	public void clearTrafficEvidence(ApiEndpoint endpoint) {
+		if (complete && apis.stream().anyMatch(a -> a == endpoint)) {
+			trafficEvidence.removeIf(e -> e.belongsTo(endpoint));
+		}
+	}
+
+	public List<Map<String, Object>> trafficEvidenceExport() {
+		List<Map<String, Object>> result = new ArrayList<>();
+		Map<String, ApiEndpoint> byKey = new LinkedHashMap<>();
+		apis.forEach(api -> byKey.putIfAbsent(ApiTrafficEvidence.key(api), api));
+		for (ApiTrafficEvidence evidence : trafficEvidence) {
+			ApiEndpoint api = byKey.get(evidence.endpointKey());
+			if (api != null) {
+				result.add(Map.of("endpointId", api.getId(), "evidence", evidence));
+			}
+		}
+		return result;
+	}
+
+	public void carryTrafficEvidence(AnalysisReport previous) {
+		if (previous != null && fingerprint != null && !fingerprint.isEmpty() && fingerprint.equals(previous.fingerprint)
+				&& java.util.Objects.equals(engineProfile, previous.engineProfile)) {
+			java.util.Set<String> keys = apis.stream().map(ApiTrafficEvidence::key).collect(java.util.stream.Collectors.toSet());
+			trafficEvidence = previous.trafficEvidence.stream().filter(e -> keys.contains(e.endpointKey()))
+					.limit(200).collect(java.util.stream.Collectors.toList());
+		}
 	}
 
 	public AssessmentReview review(String key) {
@@ -240,6 +289,7 @@ public final class AnalysisReport {
 		copy.reviews = new LinkedHashMap<>(reviews);
 		copy.investigations = investigations.stream().map(InvestigationRun::snapshot).collect(java.util.stream.Collectors.toList());
 		copy.apiDossiers = new LinkedHashMap<>(apiDossiers);
+		copy.trafficEvidence = new ArrayList<>(trafficEvidence);
 		return copy;
 	}
 
@@ -280,6 +330,12 @@ public final class AnalysisReport {
 					dossier.getEvidence().forEach(e -> text.append("\n````text\n").append(e.getTitle().replace("````", "` ` ` `"))
 							.append('\n').append(e.getCode().replace("````", "` ` ` `")).append("\n````\n"));
 				}
+			}
+		}
+		if (!trafficEvidence.isEmpty()) {
+			text.append("\n## ").append(jadx.gui.burp.BurpText.str("saved_evidence")).append("\n\n");
+			for (ApiTrafficEvidence evidence : trafficEvidence) {
+				text.append("````text\n").append(evidence.describe().replace("````", "` ` ` `")).append("\n````\n\n");
 			}
 		}
 		for (AnalysisFinding finding : findings) {

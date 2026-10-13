@@ -30,6 +30,8 @@ You do not need to know which class to search first. Start with a question: **Wh
 
 **v2.0.0 is a stable release.** Opening an APK automatically creates a local application report. Move between the report, API map, and investigation history; trace API callers and supported Retrofit / OkHttp client configurations; then let a model read relevant code in bounded steps. Investigations retain their evidence and can be saved and resumed.
 
+> **On the development branch, not in the v2.0.0 downloads:** the API map now includes Burp traffic connection setup, scoped history reads, candidate source correlations, saved metadata, and staging requests in Repeater. Supply Burp's official MCP extension and stdio proxy JAR separately. Protocol fixtures and Windows UI workflows have been tested; end-to-end testing with the real Burp extension is still pending. See the [Burp workflow guide (Chinese)](docs/BURP_WORKFLOW.md).
+
 Local reports, API discovery, and call paths work **without a model**. The desktop packages include JADX and Java; basic analysis does not require Python, Node, or REA. AI features use a model service that you configure separately.
 
 | Start with a report | Follow the code | Keep your evidence |
@@ -194,6 +196,7 @@ This README and the [Chinese README](README.md) cover installation, configuratio
 | [Application investigation](docs/ASSESSMENT_WORKFLOW.md) | Local discovery, investigation routes, and manual review |
 | [API inventory and call paths](docs/API_INVENTORY.md) | Extraction coverage, client relationships, and evidence |
 | [MCP](docs/MCP.md) | Project sharing and external tool connections |
+| [Burp workflow](docs/BURP_WORKFLOW.md) | Development feature: traffic correlation, evidence, and Repeater staging |
 | [Java deobfuscation](docs/JAVA_DEOBFUSCATION.md) | Optional preprocessing and fallback behavior |
 | [Upstream and REA design](docs/UPSTREAM_REA_DESIGN.md) | Implemented scope, borrowed ideas, and remaining work |
 | [v2.0.0 release notes](docs/releases/v2.0.0.md) | Changes, validation, and platform coverage |
