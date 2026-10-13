@@ -149,7 +149,7 @@ exit /b %ERRORLEVEL%
 
 
 def add_docs(archive, prefix, version, platform, runtime):
-    files = [ROOT / name for name in ("README.md", "LICENSE", "NOTICE", "CONTRIBUTING.md")]
+    files = [ROOT / name for name in ("README.md", "README.en.md", "LICENSE", "NOTICE", "CONTRIBUTING.md")]
     files += [ROOT / "docs/AI_WORKBENCH.md", ROOT / "docs/JAVA_DEOBFUSCATION.md", ROOT / "docs/MCP.md", ROOT / "docs/RELEASING.md",
               ROOT / "docs/API_INVENTORY.md", ROOT / "docs/ASSESSMENT_WORKFLOW.md", ROOT / "docs/UPSTREAM_REA_DESIGN.md"]
     files += sorted((ROOT / "docs/releases").glob("*.md"))
@@ -167,6 +167,10 @@ def add_docs(archive, prefix, version, platform, runtime):
         "portable": "Java 17+ required. GUI: bin/jadx-gui-ai (.bat on Windows). CLI: bin/jadx (.bat on Windows).",
     }[platform]
     archive.text(f"{prefix}/START-HERE.txt", f"JADX GUI AI {version}\nPlatform: {platform}\n\n{start}\n\n"
+                 "Documentation: English - README.en.md | 简体中文 - README.md\n\n"
+                 "Open a file to generate a local application report. Configure a model to start or resume an AI investigation.\n"
+                 "Local reports, the API map, and call paths work without a model; use Source to browse code manually.\n"
+                 "This package does not include models, accounts, keys, or analysis records.\n\n"
                  "打开文件后进入应用调查并自动生成本地报告；配置 AI 后可开始或继续调查。\n"
                  "本地报告、API 地图和调用路径无需模型；左侧源码可继续手动浏览。\n"
                  "此包不包含模型、账号、密钥或分析记录。\n\n"

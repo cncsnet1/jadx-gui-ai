@@ -19,12 +19,14 @@ class ReleaseTests(unittest.TestCase):
             archive.close()
             reader = Reader(path)
             try:
-                readme = reader.read("app/README.md").decode("utf-8")
-                links = re.findall(r'\]\(([^)]+)\)|src="([^"]+)"', readme)
-                for markdown, html in links:
-                    link = markdown or html
-                    if "://" not in link and not link.startswith("#"):
-                        self.assertIn("app/" + link.split("#")[0], reader.names)
+                for name in ("README.md", "README.en.md"):
+                    with self.subTest(readme=name):
+                        readme = reader.read("app/" + name).decode("utf-8")
+                        links = re.findall(r'\]\(([^)]+)\)|(?:src|href)="([^"]+)"', readme)
+                        for markdown, html in links:
+                            link = markdown or html
+                            if "://" not in link and not link.startswith("#"):
+                                self.assertIn("app/" + link.split("#")[0], reader.names)
                 self.assertIn("app/docs/JAVA_DEOBFUSCATION.md", reader.names)
                 self.assertIn("app/docs/API_INVENTORY.md", reader.names)
                 self.assertIn("app/docs/UPSTREAM_REA_DESIGN.md", reader.names)

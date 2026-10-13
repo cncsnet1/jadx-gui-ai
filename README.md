@@ -1,4 +1,8 @@
 <p align="center">
+  <strong>简体中文</strong> · <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
   <img src="docs/images/readme-hero.svg" alt="JADX GUI AI — 让每一次逆向分析，都有据可循" width="100%">
 </p>
 
@@ -237,6 +241,8 @@ APK 加载后自动生成本地报告，先解释值得看的线索与未知条�
 - [ ] 将静态疑点转成可预览的动态观察点，关联实际验证结果
 
 欢迎通过 [Issues](https://github.com/cncsnet1/jadx-gui-ai/issues) 提供具体场景、复现步骤或界面建议。代码贡献请先阅读 [贡献指南](CONTRIBUTING.md)。
+
+修改安装说明、功能覆盖或能力边界时，请同步更新本页与 [English README](README.en.md)。详细使用文档目前以中文为主，英文版会标注链接目标的语言。
 
 ## 致谢与许可
 
