@@ -154,7 +154,7 @@ def add_docs(archive, prefix, version, platform, runtime):
     files = [ROOT / name for name in ("README.md", "README.en.md", "LICENSE", "NOTICE", "CONTRIBUTING.md")]
     files += [ROOT / "docs/AI_WORKBENCH.md", ROOT / "docs/JAVA_DEOBFUSCATION.md", ROOT / "docs/MCP.md", ROOT / "docs/RELEASING.md",
               ROOT / "docs/API_INVENTORY.md", ROOT / "docs/ASSESSMENT_WORKFLOW.md", ROOT / "docs/UPSTREAM_REA_DESIGN.md",
-              ROOT / "docs/BURP_WORKFLOW.md"]
+              ROOT / "docs/BURP_WORKFLOW.md", ROOT / "docs/AGENT_WORKSPACE.md"]
     files += sorted((ROOT / "docs/releases").glob("*.md"))
     files += [ROOT / "docs/examples/TokenStore.java"]
     files += sorted((ROOT / "docs/images").glob("*.png"))

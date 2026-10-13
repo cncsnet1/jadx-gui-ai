@@ -352,6 +352,16 @@ public final class AnalysisReport {
 			text.append("\n## ").append(AiText.str("investigation.title")).append("\n\n````text\n")
 					.append(run.toString().replace("````", "` ` ` `")).append('\n').append(run.getState()).append(" · ")
 					.append(run.getReason().replace("````", "` ` ` `")).append('\n');
+			if (run.getAnswer() != null && run.getAnsweredFollowUps() < run.getFollowUps().size()) {
+				text.append(AiText.str("agent.answer_previous")).append('\n');
+			}
+			for (String direction : run.getFollowUps()) {
+				text.append(AiText.str("agent.direction")).append(direction.replace("````", "` ` ` `")).append('\n');
+			}
+			for (InvestigationRun.Task task : run.getTasks()) {
+				text.append('[').append(AiText.str("agent.task." + task.getStatus())).append("] ")
+						.append(task.getTitle().replace("````", "` ` ` `")).append(" · ").append(task.getEvidence()).append('\n');
+			}
 			for (String question : run.getQuestions()) {
 				text.append("? ").append(question.replace("````", "` ` ` `")).append('\n');
 			}

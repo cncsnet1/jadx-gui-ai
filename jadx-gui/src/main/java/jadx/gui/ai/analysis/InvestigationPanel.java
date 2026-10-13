@@ -1,12 +1,16 @@
 package jadx.gui.ai.analysis;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.GridLayout;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
@@ -19,6 +23,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import javax.swing.UIManager;
 
 import jadx.gui.ai.AiEvidence;
@@ -33,6 +38,19 @@ public final class InvestigationPanel extends JPanel {
 	private final DefaultListModel<EvidenceStore.Entry> entries = new DefaultListModel<>();
 	private final JList<EvidenceStore.Entry> evidence = new JList<>(entries);
 	private final JTextArea timeline = new JTextArea();
+	private final JPanel plan = WorkbenchUi.transparent();
+	private final JPanel launcher = WorkbenchUi.card(16);
+	private final JPanel continuation = WorkbenchUi.card(12);
+	private final JPanel content = new JPanel(new CardLayout());
+	private boolean composing = true;
+	private final JTextField task = new JTextField();
+	private final JTextField followUp = new JTextField();
+	private final JComboBox<AnalysisGoal> taskGoal = new JComboBox<>(AnalysisGoal.values());
+	private final JButton start = new JButton(AiText.str("agent.start"));
+	private final JButton newTask = new JButton(AiText.str("agent.new"));
+	private final JButton stop = new JButton(AiText.str("agent.stop"));
+	private final JTextArea activity = WorkbenchUi.body("");
+	private final java.util.List<JButton> presets = new java.util.ArrayList<>();
 	private final JTextArea code = new JTextArea();
 	private final JButton resume = new JButton(AiText.str("investigation.continue"));
 	private final JButton source = new JButton(AiText.str("analysis.source"));
@@ -41,9 +59,11 @@ public final class InvestigationPanel extends JPanel {
 	private boolean refreshing;
 	private boolean busy;
 	private AiRecord legacy;
+	private boolean available;
+	private String selectedId;
 
-	public InvestigationPanel(JEditorPane narrative, OpportunityPanel opportunities, Consumer<InvestigationRun> continueRun,
-			Consumer<AiRecord> display, Consumer<AiEvidence> open) {
+	public InvestigationPanel(JEditorPane narrative, OpportunityPanel opportunities, BiConsumer<InvestigationRun, String> continueRun,
+			BiConsumer<AnalysisGoal, String> startRun, Runnable cancel, Consumer<AiRecord> display, Consumer<AiEvidence> open) {
 		super(new BorderLayout(10, 10));
 		this.display = display;
 		setOpaque(false);
@@ -58,16 +78,56 @@ public final class InvestigationPanel extends JPanel {
 			}
 		});
 		JPanel top = WorkbenchUi.transparent();
-		top.add(history);
+
+		JPanel heading = WorkbenchUi.transparent();
+		heading.add(history);
+		heading.add(newTask, BorderLayout.EAST);
+		heading.add(state, BorderLayout.SOUTH);
+		top.add(heading);
+		launcher.add(WorkbenchUi.title(AiText.str("agent.heading"), 4), BorderLayout.NORTH);
+		JPanel composer = WorkbenchUi.transparent();
+		JPanel quick = new JPanel(new GridLayout(0, 2, 8, 8));
+		quick.setOpaque(false);
+		for (AnalysisGoal value : List.of(AnalysisGoal.NETWORK, AnalysisGoal.LOGIN, AnalysisGoal.SECRETS, AnalysisGoal.EXPLORE)) {
+			JButton preset = new JButton(AiText.str("agent.preset." + value.name().toLowerCase(java.util.Locale.ROOT)));
+			preset.addActionListener(e -> startRun.accept(value, ""));
+			presets.add(preset);
+			quick.add(preset);
+		}
+		JTextArea introduction = WorkbenchUi.body(AiText.str("agent.intro"));
+		introduction.setRows(2);
+		composer.add(introduction, BorderLayout.NORTH);
+		composer.add(quick);
+		JPanel input = WorkbenchUi.transparent();
+		input.add(taskGoal, BorderLayout.WEST);
+		task.putClientProperty("JTextField.placeholderText", AiText.str("agent.task"));
+		task.getAccessibleContext().setAccessibleName(AiText.str("agent.task"));
+		input.add(task);
+		WorkbenchUi.primary(start);
+		start.addActionListener(e -> startRun.accept((AnalysisGoal) taskGoal.getSelectedItem(), task.getText().trim()));
+		task.addActionListener(e -> start.doClick());
+		input.add(start, BorderLayout.EAST);
+		composer.add(input, BorderLayout.SOUTH);
+		launcher.add(composer);
+		newTask.addActionListener(e -> compose(!composing));
 		WorkbenchUi.primary(resume);
 		resume.addActionListener(e -> {
 			if (selected() != null) {
-				continueRun.accept(selected());
+				continueRun.accept(selected(), followUp.getText().trim());
 			}
 		});
-		top.add(resume, BorderLayout.EAST);
-		top.add(state, BorderLayout.SOUTH);
 		add(top, BorderLayout.NORTH);
+		followUp.putClientProperty("JTextField.placeholderText", AiText.str("agent.followup"));
+		followUp.getAccessibleContext().setAccessibleName(AiText.str("agent.followup"));
+		followUp.addActionListener(e -> resume.doClick());
+		continuation.add(followUp);
+		JPanel controls = new JPanel(new FlowLayout(FlowLayout.TRAILING, 6, 0));
+		controls.setOpaque(false);
+		controls.add(resume);
+		stop.addActionListener(e -> cancel.run());
+		controls.add(stop);
+		continuation.add(controls, BorderLayout.EAST);
+		add(continuation, BorderLayout.SOUTH);
 		for (JTextArea area : List.of(timeline, code)) {
 			area.setEditable(false);
 			area.setLineWrap(true);
@@ -75,7 +135,32 @@ public final class InvestigationPanel extends JPanel {
 			area.setFont(UIManager.getFont("Label.font"));
 			area.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 		}
-		views.addTab(AiText.str("investigation.progress"), new JScrollPane(timeline));
+		JPanel progress = WorkbenchUi.transparent();
+		JPanel board = WorkbenchUi.card(14);
+		board.add(activity, BorderLayout.NORTH);
+		plan.setLayout(new BoxLayout(plan, BoxLayout.Y_AXIS));
+		board.add(plan);
+		ApplicationReportPanel.Document document = new ApplicationReportPanel.Document();
+		document.setLayout(new BorderLayout());
+		document.add(board, BorderLayout.NORTH);
+		JScrollPane boardScroll = new JScrollPane(document);
+		boardScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+		boardScroll.getVerticalScrollBar().setUnitIncrement(18);
+		boardScroll.setBorder(null);
+		progress.add(boardScroll);
+		JPanel log = WorkbenchUi.transparent();
+		JButton toggleLog = new JButton(AiText.str("agent.log"));
+		JScrollPane logScroll = new JScrollPane(timeline);
+		logScroll.setPreferredSize(new Dimension(300, 170));
+		logScroll.setVisible(false);
+		toggleLog.addActionListener(e -> {
+			logScroll.setVisible(!logScroll.isVisible());
+			revalidate();
+		});
+		log.add(toggleLog, BorderLayout.NORTH);
+		log.add(logScroll);
+		progress.add(log, BorderLayout.SOUTH);
+		views.addTab(AiText.str("investigation.progress"), progress);
 		views.addTab(AiText.str("analysis.conclusions"), new JScrollPane(narrative));
 		views.addTab(AiText.str("opportunity.title"), opportunities);
 		evidence.setFixedCellHeight(44);
@@ -110,7 +195,23 @@ public final class InvestigationPanel extends JPanel {
 		split.getLeftComponent().setMinimumSize(new Dimension(170, 120));
 		detail.setMinimumSize(new Dimension(220, 120));
 		views.addTab(AiText.str("investigation.evidence"), split);
-		add(views);
+		ApplicationReportPanel.Document welcome = new ApplicationReportPanel.Document();
+		welcome.setLayout(new BorderLayout());
+		welcome.add(launcher, BorderLayout.NORTH);
+		JScrollPane startScroll = new JScrollPane(welcome);
+		startScroll.setBorder(null);
+		startScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+		content.setOpaque(false);
+		content.add(startScroll, "start");
+		content.add(views, "task");
+		add(content);
+	}
+
+	private void compose(boolean value) {
+		composing = value;
+		continuation.setVisible(!value);
+		((CardLayout) content.getLayout()).show(content, value ? "start" : "task");
+		newTask.setText(AiText.str(value && selected() != null ? "agent.back" : "agent.new"));
 	}
 
 	public InvestigationRun selected() {
@@ -118,6 +219,7 @@ public final class InvestigationPanel extends JPanel {
 	}
 
 	public void setReport(AnalysisReport report, String selectId) {
+		available = report != null && report.isComplete() && report.hasEvidence();
 		String selected = selectId != null ? selectId : selected() == null ? null : selected().getId();
 		legacy = report == null ? null : report.getAnalysis();
 		refreshing = true;
@@ -139,6 +241,8 @@ public final class InvestigationPanel extends JPanel {
 	}
 
 	public void showProgress() {
+		compose(false);
+		followUp.setText("");
 		views.setSelectedIndex(0);
 	}
 
@@ -149,22 +253,82 @@ public final class InvestigationPanel extends JPanel {
 	public void setBusy(boolean value) {
 		busy = value;
 		resume.setEnabled(!value && selected() != null);
+		followUp.setEnabled(!value && selected() != null);
+		history.setEnabled(!value);
+		newTask.setEnabled(!value && available);
+		start.setEnabled(!value && available);
+		presets.forEach(b -> b.setEnabled(!value && available));
+		task.setEnabled(!value && available);
+		taskGoal.setEnabled(!value && available);
+		stop.setEnabled(value);
 	}
 
 	private void render() {
 		InvestigationRun run = selected();
+		String id = run == null ? null : run.getId();
+		if (!java.util.Objects.equals(selectedId, id)) {
+			followUp.setText("");
+			compose(run == null);
+			selectedId = id;
+		}
+		plan.removeAll();
 		String selectedEvidence = evidence.getSelectedValue() == null ? null : evidence.getSelectedValue().getId();
 		entries.clear();
 		if (run == null) {
 			state.setText(AiText.str(legacy == null ? "investigation.empty" : "investigation.legacy"));
 			timeline.setText(AiText.str("investigation.empty"));
+			activity.setText(AiText.str("agent.empty_plan"));
+			compose(true);
 			display.accept(legacy);
 		} else {
 			state.setText(run.getState() + " · " + run.getReason()
 					+ (run.getAnswer() == null
 							? ""
-							: "\n" + String.format(AiText.str("investigation.answer_steps"), run.getAnsweredSteps())));
+							: "\n" + String.format(AiText.str("investigation.answer_steps"), run.getAnsweredSteps()))
+					+ (run.getAnswer() != null && run.getAnsweredFollowUps() < run.getFollowUps().size()
+							? "\n" + AiText.str("agent.answer_previous")
+							: ""));
 			StringBuilder text = new StringBuilder(run.toString() + "\n\n");
+			run.getFollowUps().forEach(q -> text.append(AiText.str("agent.direction")).append(q).append("\n\n"));
+			activity.setText((run.getState() == InvestigationRun.State.RUNNING ? run.getAction() : run.getReason())
+					+ "\n" + String.format(AiText.str("agent.counts"), run.getRounds(), InvestigationService.MAX_ROUNDS,
+							run.getCalls(), InvestigationService.MAX_CALLS, run.getEvidence().entries().size())
+					+ (run.isCompatibility() ? "\n" + AiText.str("agent.compatibility") : "")
+					+ (run.getFollowUps().isEmpty()
+							? ""
+							: "\n" + AiText.str("agent.direction")
+									+ jadx.gui.ai.AiCodeChunks.prefix(run.getFollowUps().get(run.getFollowUps().size() - 1), 300)));
+			if (run.getTasks().isEmpty()) {
+				JTextArea empty = WorkbenchUi.body(AiText.str("agent.empty_plan"));
+				empty.setAlignmentX(LEFT_ALIGNMENT);
+				plan.add(empty);
+			}
+			for (InvestigationRun.Task item : run.getTasks()) {
+				JPanel row = WorkbenchUi.card(10);
+				row.add(WorkbenchUi.body(AiText.str("agent.task." + item.getStatus()) + "  ·  " + item.getTitle()));
+				if (!item.getEvidence().isEmpty()) {
+					JButton proof = new JButton(String.format(AiText.str("agent.proof"), item.getEvidence().size()));
+					proof.addActionListener(e -> {
+						for (int i = 0; i < entries.size(); i++) {
+							if (entries.get(i).getId().equals(item.getEvidence().get(0))) {
+								evidence.setSelectedIndex(i);
+								views.setSelectedIndex(3);
+								break;
+							}
+						}
+					});
+					row.add(proof, BorderLayout.EAST);
+				}
+				row.setAlignmentX(LEFT_ALIGNMENT);
+				plan.add(row);
+				plan.add(javax.swing.Box.createVerticalStrut(6));
+			}
+			if (!run.getQuestions().isEmpty()) {
+				JTextArea questions =
+						WorkbenchUi.body(AiText.str("investigation.questions") + "\n" + String.join("\n", run.getQuestions()));
+				questions.setAlignmentX(LEFT_ALIGNMENT);
+				plan.add(questions);
+			}
 			int index = 0;
 			for (InvestigationRun.Step step : run.getSteps()) {
 				text.append(++index).append(". ").append(AiText.str("investigation.tool." + step.getOperation())).append(" · ")
@@ -190,6 +354,8 @@ public final class InvestigationPanel extends JPanel {
 			evidence.setSelectedIndex(index);
 		}
 		selection();
+		plan.revalidate();
+		plan.repaint();
 		setBusy(busy);
 	}
 

@@ -122,6 +122,9 @@ public final class AnalysisPanel extends JPanel {
 		});
 		applicationReport = new ApplicationReportPanel((finding, selectedGoal) -> {
 			goal.setSelectedItem(selectedGoal);
+			if (finding == null) {
+				question.setText("");
+			}
 			analyze(finding);
 		}, finding -> {
 			if (report != null && report.getApis().stream().anyMatch(api -> api.getId().equals(finding.getId()))) {
@@ -133,15 +136,20 @@ public final class AnalysisPanel extends JPanel {
 			findings.setSelectedValue(finding, true);
 			showReportPage("evidence");
 		}, () -> showReportPage("all"), () -> results.setSelectedIndex(TAB_APIS), this::settings);
-		investigations = new InvestigationPanel(narrative, opportunities, run -> analyze(null, run), record -> {
-			displayed = record;
-			renderOverview();
-			AnalysisReport selectedReport = report == null ? null : report.snapshot();
-			if (selectedReport != null) {
-				selectedReport.setAnalysis(record);
-			}
-			opportunities.setReport(selectedReport);
-		}, this::open);
+		investigations = new InvestigationPanel(narrative, opportunities, (run, direction) -> analyze(null, run, direction),
+				(selectedGoal, instruction) -> {
+					goal.setSelectedItem(selectedGoal);
+					question.setText(instruction);
+					analyze(null);
+				}, this::cancel, record -> {
+					displayed = record;
+					renderOverview();
+					AnalysisReport selectedReport = report == null ? null : report.snapshot();
+					if (selectedReport != null) {
+						selectedReport.setAnalysis(record);
+					}
+					opportunities.setReport(selectedReport);
+				}, this::open);
 		goal.addActionListener(e -> setBusy(busy));
 		setBorder(BorderFactory.createEmptyBorder(18, 22, 14, 22));
 		setMinimumSize(new Dimension(420, 300));
@@ -468,16 +476,24 @@ public final class AnalysisPanel extends JPanel {
 	}
 
 	private void analyze(AnalysisFinding focus, InvestigationRun previous) {
+		analyze(focus, previous, "");
+	}
+
+	private void analyze(AnalysisFinding focus, InvestigationRun previous, String direction) {
 		if (busy || report == null || !report.isComplete() || !report.hasEvidence()) {
 			return;
 		}
-		if (question.getText().length() > 2000) {
+		if (question.getText().length() > 2000 || direction.length() > 2000) {
 			status.setText(AiText.str("analysis.question_limit"));
 			return;
 		}
 		taskGoal = (AnalysisGoal) goal.getSelectedItem();
 		AnalysisGoal selectedGoal = previous == null ? taskGoal : previous.getGoal();
 		String taskQuestion = previous == null ? question.getText().trim() : previous.getQuestion();
+		if (previous != null && !direction.isBlank() && previous.getFollowUps().size() >= 12) {
+			status.setText(AiText.str("agent.followup_limit"));
+			return;
+		}
 		if (previous == null && report.getInvestigations().size() >= 24) {
 			status.setText(AiText.str("investigation.history_limit"));
 			return;
@@ -506,7 +522,7 @@ public final class AnalysisPanel extends JPanel {
 		investigations.showProgress();
 		activeProject = project;
 		runner.submit(token -> new InvestigationService(decompiler, client).investigate(snapshot, selectedGoal, taskQuestion, focus,
-				previous, selectedProfile, token, run -> SwingUtilities.invokeLater(() -> {
+				previous, direction, selectedProfile, token, run -> SwingUtilities.invokeLater(() -> {
 					if (valid(id, project)) {
 						boolean first = activeRun == null;
 						activeRun = run;

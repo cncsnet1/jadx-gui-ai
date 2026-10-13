@@ -104,7 +104,13 @@ public final class OpenAiClient implements AiClient {
 		return exchange(builder.build(), cancellation, (input, lastRead) -> readStream(input, lastRead, cancellation, onContent));
 	}
 
-	/** Non-streaming function calls for the optional MCP loop. Ordinary analysis continues to stream. */
+	@Override
+	public boolean supportsTools() {
+		return true;
+	}
+
+	/** Non-streaming function calls shared by the local investigation agent and optional MCP loop. */
+	@Override
 	public JsonObject completeWithTools(String model, JsonArray messages, JsonArray tools, int maxTokens,
 			AiCancellation cancellation) throws IOException, InterruptedException {
 		JsonObject body = new JsonObject();

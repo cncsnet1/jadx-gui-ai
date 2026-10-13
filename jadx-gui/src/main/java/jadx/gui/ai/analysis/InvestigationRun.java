@@ -62,6 +62,41 @@ public final class InvestigationRun {
 		}
 	}
 
+	/** Public work plan, not private model reasoning; completion always links retained evidence. */
+	public static final class Task {
+		private final String title;
+		private final String status;
+		private final List<String> evidence;
+
+		private Task() {
+			title = "";
+			status = "pending";
+			evidence = List.of();
+		}
+
+		Task(String title, String status, List<String> evidence) {
+			if (title.isBlank() || title.length() > 200 || !Set.of("pending", "active", "done", "blocked").contains(status)
+					|| evidence.size() > 8 || (status.equals("done") && evidence.isEmpty())) {
+				throw new IllegalArgumentException("Invalid task or completion without evidence");
+			}
+			this.title = AnalysisRedactor.redact(title);
+			this.status = status;
+			this.evidence = List.copyOf(evidence);
+		}
+
+		public String getTitle() {
+			return title;
+		}
+
+		public String getStatus() {
+			return status;
+		}
+
+		public List<String> getEvidence() {
+			return Collections.unmodifiableList(evidence);
+		}
+	}
+
 	private String id = UUID.randomUUID().toString();
 	private long createdAt = System.currentTimeMillis();
 	private AnalysisGoal goal;
@@ -79,6 +114,14 @@ public final class InvestigationRun {
 	private Set<String> completedCalls = new LinkedHashSet<>();
 	private AiRecord answer;
 	private int answeredSteps;
+	private int answeredFollowUps;
+	private List<Task> tasks = new ArrayList<>();
+	private List<String> followUps = new ArrayList<>();
+	private String action = "";
+	private String feedback = "";
+	private boolean compatibility;
+	private int rounds;
+	private int calls;
 
 	private InvestigationRun() {
 	}
@@ -108,6 +151,73 @@ public final class InvestigationRun {
 
 	public String getFocusId() {
 		return focusId;
+	}
+
+	public List<Task> getTasks() {
+		return Collections.unmodifiableList(tasks);
+	}
+
+	public List<String> getFollowUps() {
+		return Collections.unmodifiableList(followUps);
+	}
+
+	public String getAction() {
+		return action;
+	}
+
+	public String getFeedback() {
+		return feedback;
+	}
+
+	public boolean isCompatibility() {
+		return compatibility;
+	}
+
+	public int getRounds() {
+		return rounds;
+	}
+
+	public int getCalls() {
+		return calls;
+	}
+
+	void begin(String followUp) {
+		if (followUp.length() > 2000 || (!followUp.isBlank() && followUps.size() >= 12)) {
+			throw new IllegalArgumentException(AiText.str("agent.followup_limit"));
+		}
+		if (!followUp.isBlank()) {
+			followUps.add(AnalysisRedactor.redact(followUp.trim()));
+			// A new direction needs a fresh plan; retained observations and prior answer stay available.
+			tasks.clear();
+		}
+		rounds = 0;
+		calls = 0;
+		feedback = "";
+		action = AiText.str("analysis.planning");
+		stop(State.RUNNING, "");
+	}
+
+	void plan(List<Task> values) {
+		if (values.isEmpty() || values.size() > 6) {
+			throw new IllegalArgumentException("Plan must contain 1-6 tasks");
+		}
+		for (Task task : values) {
+			for (String id : task.getEvidence()) {
+				evidence.get(id);
+			}
+		}
+		tasks = new ArrayList<>(values);
+	}
+
+	void progress(int round, int callCount, String current, boolean compat) {
+		rounds = round;
+		calls = callCount;
+		action = AnalysisRedactor.redact(current);
+		compatibility = compat;
+	}
+
+	void feedback(String value) {
+		feedback = value;
 	}
 
 	public State getState() {
@@ -148,9 +258,14 @@ public final class InvestigationRun {
 		return answeredSteps;
 	}
 
+	public int getAnsweredFollowUps() {
+		return answeredFollowUps;
+	}
+
 	public void setAnswer(AiRecord value) {
 		answer = value;
 		answeredSteps = steps.size();
+		answeredFollowUps = followUps.size();
 	}
 
 	void select(List<AnalysisFinding> findings) {
@@ -248,6 +363,14 @@ public final class InvestigationRun {
 		copy.completedCalls = new LinkedHashSet<>(completedCalls);
 		copy.answer = answer;
 		copy.answeredSteps = answeredSteps;
+		copy.answeredFollowUps = answeredFollowUps;
+		copy.tasks = new ArrayList<>(tasks);
+		copy.followUps = new ArrayList<>(followUps);
+		copy.action = action;
+		copy.feedback = feedback;
+		copy.compatibility = compatibility;
+		copy.rounds = rounds;
+		copy.calls = calls;
 		return copy;
 	}
 
