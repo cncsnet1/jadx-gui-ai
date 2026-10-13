@@ -59,6 +59,8 @@ The Windows package has been tested by launching the application. macOS and Linu
 
 The original JADX CLI is included as `bin/jadx`, or `bin\jadx.bat` on Windows. Release assets include `SHA256SUMS.txt` and `release-manifest.json` to check the downloads, source commit, and bundled runtime.
 
+**Null pointer while initializing plugins?** A stack trace through `JadxPluginsTools.getEnabledPluginJars` → `Path.resolve` usually means an installed-plugin entry has no `jar` filename. This particular exception is not caused by Java 8. Close the app, back up and rename `%APPDATA%\skylot\jadx\config\plugins\plugins.json`, then restart to temporarily disable the external plugins registered in that file. If `JADX_CONFIG_DIR` is set, use its `plugins\plugins.json` instead. Reinstall the plugins you need afterward. The development branch skips invalid entries with a diagnostic; this fix is not in the v2.0.0 downloads.
+
 ## Your first analysis
 
 1. **Open a file.** Drop an APK, DEX, JAR, or CLASS onto the start page. After loading, the app opens the analysis workspace and generates a local report.

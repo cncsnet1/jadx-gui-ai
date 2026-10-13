@@ -164,6 +164,8 @@ APK 加载后自动生成本地报告，先解释值得看的线索与未知条�
 
 包内同时保留 JADX CLI：`bin/jadx`，Windows 使用 `bin\jadx.bat`。发布附件提供 `SHA256SUMS.txt` 和 `release-manifest.json`，用于核对下载内容与内置运行环境。
 
+**打开 APK 时出现插件初始化空指针？** 如果堆栈指向 `JadxPluginsTools.getEnabledPluginJars` → `Path.resolve`，通常是已安装插件清单中的 `jar` 字段缺失，并非该异常由 JDK 8 引起。关闭程序，将 `%APPDATA%\skylot\jadx\config\plugins\plugins.json` 备份并重命名后再启动，可以临时停用清单登记的外部插件；如设置了 `JADX_CONFIG_DIR`，文件位于该目录下的 `plugins\plugins.json`。随后重新安装需要的插件即可。开发分支已增加无效记录跳过与日志提示，此修复尚未包含在 v2.0.0 下载包中。
+
 ## 三分钟开始第一次分析
 
 以下流程随 v2.0.0 发布；建议将新包完整解压到独立目录后启动。

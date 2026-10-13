@@ -5,6 +5,7 @@ import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -42,12 +43,22 @@ public class JadxPluginsTools {
 	private static final Logger LOG = LoggerFactory.getLogger(JadxPluginsTools.class);
 
 	private static final JadxPluginsTools INSTANCE = new JadxPluginsTools();
+	private final Path pluginsJson;
+	private final Path installedDir;
+	private final Path dropinsDir;
 
 	public static JadxPluginsTools getInstance() {
 		return INSTANCE;
 	}
 
 	private JadxPluginsTools() {
+		this(PLUGINS_JSON, INSTALLED_DIR, DROPINS_DIR);
+	}
+
+	JadxPluginsTools(Path pluginsJson, Path installedDir, Path dropinsDir) {
+		this.pluginsJson = pluginsJson;
+		this.installedDir = installedDir;
+		this.dropinsDir = dropinsDir;
 	}
 
 	public JadxPluginMetadata install(String locationId) {
@@ -174,24 +185,50 @@ public class JadxPluginsTools {
 	}
 
 	public List<Path> getAllPluginJars() {
-		List<Path> list = new ArrayList<>();
-		for (JadxPluginMetadata pluginMetadata : loadPluginsJson().getInstalled()) {
-			list.add(INSTALLED_DIR.resolve(pluginMetadata.getJar()));
-		}
-		collectJarsFromDir(list, DROPINS_DIR);
-		return list;
+		return getPluginJars(false);
 	}
 
 	public List<Path> getEnabledPluginJars() {
+		return getPluginJars(true);
+	}
+
+	private List<Path> getPluginJars(boolean enabledOnly) {
 		List<Path> list = new ArrayList<>();
 		for (JadxPluginMetadata pluginMetadata : loadPluginsJson().getInstalled()) {
-			if (pluginMetadata.isDisabled()) {
+			if (enabledOnly && pluginMetadata.isDisabled()) {
 				continue;
 			}
-			list.add(INSTALLED_DIR.resolve(pluginMetadata.getJar()));
+			Path jar = resolveInstalledJar(pluginMetadata);
+			if (jar != null) {
+				if (Files.isRegularFile(jar)) {
+					list.add(jar);
+				} else {
+					LOG.warn("Skipping installed plugin '{}': JAR is missing: {}. Reinstall or remove its entry in {}",
+							pluginMetadata.getPluginId(), jar, pluginsJson);
+				}
+			}
 		}
-		collectJarsFromDir(list, DROPINS_DIR);
+		collectJarsFromDir(list, dropinsDir);
 		return list;
+	}
+
+	private @Nullable Path resolveInstalledJar(JadxPluginMetadata metadata) {
+		String jar = metadata.getJar();
+		if (jar != null && !jar.isBlank()) {
+			try {
+				Path name = Path.of(jar);
+				// Installed metadata stores a filename, never an external or nested path.
+				if (name.getRoot() == null && name.getNameCount() == 1 && !jar.equals(".") && !jar.equals("..")
+						&& !jar.contains("/") && !jar.contains("\\")) {
+					return installedDir.resolve(name);
+				}
+			} catch (InvalidPathException e) {
+				// A damaged metadata entry must not prevent bundled and valid plugins from loading.
+			}
+		}
+		LOG.warn("Skipping installed plugin '{}': missing or invalid JAR filename in {}. Reinstall or remove this entry",
+				metadata.getPluginId(), pluginsJson);
+		return null;
 	}
 
 	/**
@@ -241,9 +278,9 @@ public class JadxPluginsTools {
 
 		String version = metadata.getVersion();
 		String fileName = metadata.getPluginId() + (StringUtils.notBlank(version) ? '-' + version : "") + ".jar";
-		Path pluginJar = INSTALLED_DIR.resolve(fileName);
+		Path pluginJar = installedDir.resolve(fileName);
 		copyJar(Paths.get(metadata.getJar()), pluginJar);
-		metadata.setJar(INSTALLED_DIR.relativize(pluginJar).toString());
+		metadata.setJar(installedDir.relativize(pluginJar).toString());
 
 		JadxInstalledPlugins plugins = loadPluginsJson();
 		// remove previous version jar
@@ -298,42 +335,52 @@ public class JadxPluginsTools {
 	}
 
 	private void deletePluginJar(JadxPluginMetadata plugin) {
+		Path jar = resolveInstalledJar(plugin);
+		if (jar == null) {
+			return;
+		}
 		try {
-			Files.deleteIfExists(INSTALLED_DIR.resolve(plugin.getJar()));
+			Files.deleteIfExists(jar);
 		} catch (IOException e) {
 			// ignore
 		}
 	}
 
 	private JadxInstalledPlugins loadPluginsJson() {
-		if (!Files.isRegularFile(PLUGINS_JSON)) {
+		if (!Files.isRegularFile(pluginsJson)) {
 			JadxInstalledPlugins plugins = new JadxInstalledPlugins();
 			plugins.setVersion(1);
 			return plugins;
 		}
-		try (Reader reader = Files.newBufferedReader(PLUGINS_JSON, StandardCharsets.UTF_8)) {
+		try (Reader reader = Files.newBufferedReader(pluginsJson, StandardCharsets.UTF_8)) {
 			JadxInstalledPlugins data = buildGson().fromJson(reader, JadxInstalledPlugins.class);
 			upgradePluginsData(data);
+			if (data.getInstalled() == null) {
+				LOG.warn("Ignoring null installed plugin list in {}", pluginsJson);
+				data.setInstalled(new ArrayList<>());
+			} else if (data.getInstalled().removeIf(Objects::isNull)) {
+				LOG.warn("Ignoring null installed plugin entries in {}", pluginsJson);
+			}
 			return data;
 		} catch (Exception e) {
-			throw new RuntimeException("Failed to read file: " + PLUGINS_JSON);
+			throw new RuntimeException("Failed to read file: " + pluginsJson, e);
 		}
 	}
 
 	private void savePluginsJson(JadxInstalledPlugins data) {
 		if (data.getInstalled().isEmpty()) {
 			try {
-				Files.deleteIfExists(PLUGINS_JSON);
+				Files.deleteIfExists(pluginsJson);
 			} catch (Exception e) {
-				throw new RuntimeException("Failed to remove file: " + PLUGINS_JSON, e);
+				throw new RuntimeException("Failed to remove file: " + pluginsJson, e);
 			}
 			return;
 		}
 		data.getInstalled().sort(null);
-		try (Writer writer = Files.newBufferedWriter(PLUGINS_JSON, StandardCharsets.UTF_8)) {
+		try (Writer writer = Files.newBufferedWriter(pluginsJson, StandardCharsets.UTF_8)) {
 			buildGson().toJson(data, writer);
 		} catch (Exception e) {
-			throw new RuntimeException("Error saving file: " + PLUGINS_JSON, e);
+			throw new RuntimeException("Error saving file: " + pluginsJson, e);
 		}
 	}
 
