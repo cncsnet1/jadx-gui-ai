@@ -91,6 +91,7 @@ public final class BurpTrafficPanel extends JPanel implements AutoCloseable {
 	private final JButton stage = button("stage", this::stage);
 	private final JButton source = button("source", this::source);
 	private final JButton clearSaved = button("clear_saved", this::clearSaved);
+	private final JPanel connectionHelp = flow();
 	private final List<BurpExchange> session = new ArrayList<>();
 	private AnalysisReport report;
 	private ApiEndpoint endpoint;
@@ -185,7 +186,13 @@ public final class BurpTrafficPanel extends JPanel implements AutoCloseable {
 		status.setRows(2);
 		JScrollPane statusScroll = new JScrollPane(status);
 		statusScroll.setBorder(null);
-		top.add(statusScroll, BorderLayout.SOUTH);
+		JPanel notices = WorkbenchUi.transparent();
+		notices.add(statusScroll);
+		connectionHelp.add(button("install_help", BurpSetup::openInstallHelp));
+		connectionHelp.add(button("connection_settings", this::configureConnection));
+		connectionHelp.setVisible(false);
+		notices.add(connectionHelp, BorderLayout.SOUTH);
+		top.add(notices, BorderLayout.SOUTH);
 		add(top, BorderLayout.NORTH);
 		table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 		table.setRowHeight(30);
@@ -224,6 +231,8 @@ public final class BurpTrafficPanel extends JPanel implements AutoCloseable {
 		menu.add(raw);
 		menu.add(cancel);
 		menu.addSeparator();
+		menu.add(menuItem("connection_settings", this::configureConnection));
+		menu.add(menuItem("install_help", BurpSetup::openInstallHelp));
 		menu.add(menuItem("advanced", window::showMcpDialog));
 		JButton options = new JButton(BurpText.str("options"));
 		options.addActionListener(e -> menu.show(options, 0, options.getHeight()));
@@ -313,9 +322,30 @@ public final class BurpTrafficPanel extends JPanel implements AutoCloseable {
 		refreshConnections();
 		Choice selected = (Choice) connections.getSelectedItem();
 		McpConnection config = selected == null
-				? BurpSetup.choose(this)
+				? BurpSetup.directConfiguration(BurpSetup.DEFAULT_URL)
 				: window.getSettings().getMcpConnections().stream().filter(c -> c.id.equals(selected.id)).findFirst().orElse(null);
 		if (config == null) {
+			return;
+		}
+		connect(config);
+	}
+
+	private void configureConnection() {
+		if (!busy && !parentBusy) {
+			Choice choice = (Choice) connections.getSelectedItem();
+			McpConnection existing = choice == null
+					? null
+					: window.getSettings().getMcpConnections().stream()
+							.filter(c -> c.id.equals(choice.id) && "sse".equals(c.transport)).findFirst().orElse(null);
+			McpConnection config = BurpSetup.choose(this, existing);
+			if (config != null) {
+				connect(config);
+			}
+		}
+	}
+
+	private void connect(McpConnection config) {
+		if (busy || parentBusy) {
 			return;
 		}
 		clearSession();
@@ -343,11 +373,30 @@ public final class BurpTrafficPanel extends JPanel implements AutoCloseable {
 				window.getSettings().sync();
 				busy = false;
 				refreshConnections();
+				refreshingConnections = true;
+				for (int i = 0; i < connections.getItemCount(); i++) {
+					if (config.id.equals(connections.getItemAt(i).id)) {
+						connections.setSelectedIndex(i);
+						break;
+					}
+				}
+				refreshingConnections = false;
+				controls();
 				setStatus(BurpText.str("connected"));
 			});
 			return true;
 		}, ignored -> {
-		}, error -> failure(epoch, error));
+		}, error -> SwingUtilities.invokeLater(() -> {
+			if (epoch == revision) {
+				busy = false;
+				controls();
+				setStatus(BurpText.str("incompatible").equals(error.getMessage())
+						? BurpText.str("incompatible")
+						: BurpText.str("connect_failed"));
+				connectionHelp.setVisible(true);
+				revalidate();
+			}
+		}));
 	}
 
 	private void read(boolean append) {
@@ -541,6 +590,7 @@ public final class BurpTrafficPanel extends JPanel implements AutoCloseable {
 
 	private void clearSession() {
 		cancel();
+		connectionHelp.setVisible(false);
 		session.clear();
 		sessionClient = null;
 		sessionOrigin = null;

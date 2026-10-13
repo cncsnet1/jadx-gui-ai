@@ -20,6 +20,8 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.gson.JsonParseException;
+
 import jadx.api.plugins.JadxPlugin;
 import jadx.api.plugins.JadxPluginInfo;
 import jadx.core.Jadx;
@@ -346,7 +348,7 @@ public class JadxPluginsTools {
 		}
 	}
 
-	private JadxInstalledPlugins loadPluginsJson() {
+	private synchronized JadxInstalledPlugins loadPluginsJson() {
 		if (!Files.isRegularFile(pluginsJson)) {
 			JadxInstalledPlugins plugins = new JadxInstalledPlugins();
 			plugins.setVersion(1);
@@ -354,6 +356,9 @@ public class JadxPluginsTools {
 		}
 		try (Reader reader = Files.newBufferedReader(pluginsJson, StandardCharsets.UTF_8)) {
 			JadxInstalledPlugins data = buildGson().fromJson(reader, JadxInstalledPlugins.class);
+			if (data == null) {
+				throw new JsonParseException("Empty plugin registry");
+			}
 			upgradePluginsData(data);
 			if (data.getInstalled() == null) {
 				LOG.warn("Ignoring null installed plugin list in {}", pluginsJson);
@@ -362,12 +367,24 @@ public class JadxPluginsTools {
 				LOG.warn("Ignoring null installed plugin entries in {}", pluginsJson);
 			}
 			return data;
+		} catch (JsonParseException e) {
+			Path backup = pluginsJson.resolveSibling("plugins.json.corrupt-" + java.util.UUID.randomUUID() + ".bak");
+			try {
+				Files.move(pluginsJson, backup);
+				LOG.warn("Recovered unreadable plugin registry. Original file saved to {}. Reinstall any external plugins you need",
+						backup);
+				JadxInstalledPlugins recovered = new JadxInstalledPlugins();
+				recovered.setVersion(1);
+				return recovered;
+			} catch (IOException backupError) {
+				throw new RuntimeException("Cannot preserve damaged plugin registry: " + pluginsJson, backupError);
+			}
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to read file: " + pluginsJson, e);
 		}
 	}
 
-	private void savePluginsJson(JadxInstalledPlugins data) {
+	private synchronized void savePluginsJson(JadxInstalledPlugins data) {
 		if (data.getInstalled().isEmpty()) {
 			try {
 				Files.deleteIfExists(pluginsJson);

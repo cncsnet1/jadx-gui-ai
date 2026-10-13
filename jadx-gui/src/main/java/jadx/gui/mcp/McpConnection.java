@@ -57,10 +57,11 @@ public final class McpConnection {
 					throw new IllegalArgumentException("Environment maps child variable names to existing host variable names");
 				}
 			}
-		} else if ("http".equals(transport)) {
+		} else if ("http".equals(transport) || "sse".equals(transport)) {
 			URI uri = URI.create(url);
 			boolean local = "127.0.0.1".equals(uri.getHost()) || "localhost".equals(uri.getHost()) || "[::1]".equals(uri.getHost());
 			if (uri.getHost() == null || uri.getUserInfo() != null || uri.getFragment() != null || uri.getQuery() != null
+					|| uri.getPort() == 0 || uri.getPort() > 65535
 					|| !("https".equals(uri.getScheme()) || ("http".equals(uri.getScheme()) && local))) {
 				throw new IllegalArgumentException("Use HTTPS, or HTTP on localhost; no URL credentials, query or fragment");
 			}
@@ -68,7 +69,7 @@ public final class McpConnection {
 				throw new IllegalArgumentException("Invalid bearer token environment variable");
 			}
 		} else {
-			throw new IllegalArgumentException("Use stdio or http transport");
+			throw new IllegalArgumentException("Use stdio, http or sse transport");
 		}
 	}
 

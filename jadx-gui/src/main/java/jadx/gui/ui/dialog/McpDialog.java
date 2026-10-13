@@ -57,7 +57,7 @@ public final class McpDialog extends JDialog {
 	private final DefaultListModel<McpConnection> connections = new DefaultListModel<>();
 	private final JList<McpConnection> list = new JList<>(connections);
 	private final JTextField name = new JTextField();
-	private final JComboBox<String> transport = new JComboBox<>(new String[] { "stdio", "http" });
+	private final JComboBox<String> transport = new JComboBox<>(new String[] { "stdio", "http", "sse" });
 	private final JComboBox<String> toolProfile = new JComboBox<>(new String[] { "all", "rea-static", "burp-readonly" });
 	private final JTextField command = new JTextField();
 	private final JTextArea args = new JTextArea("[]", 4, 25);
@@ -210,7 +210,8 @@ public final class McpDialog extends JDialog {
 		JPanel cards = new JPanel(new CardLayout());
 		cards.add(connectionCard(stdio, "stdio_hint"), "stdio");
 		cards.add(connectionCard(http, "http_hint"), "http");
-		transport.addActionListener(event -> ((CardLayout) cards.getLayout()).show(cards, (String) transport.getSelectedItem()));
+		transport.addActionListener(event -> ((CardLayout) cards.getLayout()).show(cards,
+				"stdio".equals(transport.getSelectedItem()) ? "stdio" : "http"));
 		ScrollForm form = new ScrollForm();
 		JPanel fields = new JPanel(new BorderLayout());
 		fields.add(common, BorderLayout.NORTH);

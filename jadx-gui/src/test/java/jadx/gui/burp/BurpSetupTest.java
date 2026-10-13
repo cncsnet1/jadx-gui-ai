@@ -17,6 +17,18 @@ class BurpSetupTest {
 	Path temp;
 
 	@Test
+	void defaultConnectionNeedsNoExecutableJarOrEnvironment() {
+		McpConnection config = BurpSetup.directConfiguration(BurpSetup.DEFAULT_URL);
+		assertThat(config.transport).isEqualTo("sse");
+		assertThat(config.command).isEmpty();
+		assertThat(config.args).isEmpty();
+		assertThat(config.environment).isEmpty();
+		assertThat(config.url).isEqualTo("http://127.0.0.1:9876");
+		assertThatThrownBy(() -> BurpSetup.directConfiguration("https://remote.example.test"))
+				.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
 	void keepsPathsWithSpacesAsSeparateArgumentsAndUsesReadOnlyProfile() throws Exception {
 		Path java = Files.createFile(temp.resolve("java executable"));
 		Path jar = Files.createFile(temp.resolve("official proxy.jar"));

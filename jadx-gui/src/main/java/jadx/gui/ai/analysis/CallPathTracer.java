@@ -179,7 +179,12 @@ public final class CallPathTracer {
 				result.stop = CallPath.Stop.METHOD_SIZE;
 				return result;
 			}
-			if (++reads > 128 || (units += reader.getUnitsCount()) > 1_000_000) {
+			if (++reads > 128) {
+				result.stop = CallPath.Stop.READS;
+				return result;
+			}
+			units += reader.getUnitsCount();
+			if (units > 1_000_000) {
 				result.stop = CallPath.Stop.READS;
 				return result;
 			}

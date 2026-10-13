@@ -32,7 +32,7 @@
 
 > **v2.0.0 正式版：** 打开 APK 自动生成本地应用报告；「应用报告 / API 地图 / 调查记录」三页导航；一键梳理 API 调用路径与 Retrofit / OkHttp 客户端；有预算、可保存和继续的 AI 调查；MCP 调用关系工具、REA 工具筛选和长结果分页。无需模型即可扫描与查看请求关系。见[本轮实现范围与后续设计](docs/UPSTREAM_REA_DESIGN.md)。
 
-> **主分支开发进展（尚未包含在 v2.0.0 下载包）：** API 地图新增 Burp「实际流量」，支持连接引导、按主机读取历史、源码候选关联、证据摘要保存和转交 Repeater。需要另行提供 Burp 官方 MCP 扩展及代理 JAR；目前通过协议样本和 Windows 界面回归，完整 Burp 实机联调待完成。见 [Burp 联动说明](docs/BURP_WORKFLOW.md)。
+> **主分支开发进展（尚未包含在 v2.0.0 下载包）：** API 地图新增 Burp「实际流量」。在 Burp 安装并启用官方 MCP Server 后，点击「连接 Burp」即可使用默认本机地址，成功后自动记住配置；无需导出代理 JAR、选择 Java 或填写启动参数。支持按主机读取历史、源码候选关联、证据摘要保存和转交 Repeater。目前通过协议样本和 Windows 界面回归，完整 Burp 实机联调待完成。见 [Burp 联动说明](docs/BURP_WORKFLOW.md)。
 
 **面向初学者的应用调查工作区**：先梳理 API、入口和有用材料，再由 AI 读取相关代码、比较值得先尝试的入口，解释已有依据与待追踪环节。可以导出线索包，到其他工具继续调查；需要评估问题时再记录人工核查。未连接模型也能使用本地发现、API 清单与路线指南。原有源码助手、AI 搜索、人工复核与 MCP 继续保留。
 
@@ -164,7 +164,7 @@ APK 加载后自动生成本地报告，先解释值得看的线索与未知条�
 
 包内同时保留 JADX CLI：`bin/jadx`，Windows 使用 `bin\jadx.bat`。发布附件提供 `SHA256SUMS.txt` 和 `release-manifest.json`，用于核对下载内容与内置运行环境。
 
-**打开 APK 时出现插件初始化空指针？** 如果堆栈指向 `JadxPluginsTools.getEnabledPluginJars` → `Path.resolve`，通常是已安装插件清单中的 `jar` 字段缺失，并非该异常由 JDK 8 引起。关闭程序，将 `%APPDATA%\skylot\jadx\config\plugins\plugins.json` 备份并重命名后再启动，可以临时停用清单登记的外部插件；如设置了 `JADX_CONFIG_DIR`，文件位于该目录下的 `plugins\plugins.json`。随后重新安装需要的插件即可。开发分支已增加无效记录跳过与日志提示，此修复尚未包含在 v2.0.0 下载包中。
+**打开 APK 时出现插件初始化空指针？** 如果堆栈指向 `JadxPluginsTools.getEnabledPluginJars` → `Path.resolve`，通常是已安装插件清单中的 `jar` 字段缺失，并非该异常由 JDK 8 引起。开发分支会自动跳过无效记录；清单 JSON 损坏时，先保留完整 `.bak` 备份，再继续加载内置插件与 dropins 插件，无需手改配置。恢复会暂时停用损坏清单登记的外部插件，可随后重新安装，备份位置会写入日志。此修复尚未包含在 v2.0.0 下载包中。旧版临时处理：关闭程序，备份并重命名 `%APPDATA%\skylot\jadx\config\plugins\plugins.json` 后重启；如设置了 `JADX_CONFIG_DIR`，使用该目录下的 `plugins\plugins.json`。
 
 ## 三分钟开始第一次分析
 

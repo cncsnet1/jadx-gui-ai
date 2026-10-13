@@ -9,7 +9,7 @@
 | 模式 | 调用方向 | 当前能力 |
 | --- | --- | --- |
 | 共享 JADX | 外部 MCP 客户端 → 已打开的 JADX 项目 | 本机 Streamable HTTP，只读查询当前项目 |
-| 外部工具 | JADX → 你配置的 MCP 服务 | stdio 子进程或 Streamable HTTP；可手动执行，也可交给 AI 选择 |
+| 外部工具 | JADX → 你配置的 MCP 服务 | stdio 子进程或 Streamable HTTP；主分支另增旧版 HTTP+SSE；可手动执行，也可交给 AI 选择 |
 
 服务端不需要配置模型或 API Key。AI 调用外部工具时，所选模型需要支持 OpenAI 兼容的 Chat Completions `tools` / `tool_calls`；普通源码分析仍使用原来的流式接口。
 
@@ -73,6 +73,8 @@ v2.0.0 正式版新增两个共用本地操作：`trace_calls(className, methodI
 
 远程连接要求 HTTPS，本机可使用 HTTP。URL 不允许内嵌凭据、查询参数或片段；不会跟随重定向。密钥从 JADX 启动时继承的环境读取，修改环境后通常需要重启 JADX。
 
+主分支新增 `sse` 传输选项（尚未包含在 v2.0.0）：用于旧版 HTTP+SSE 服务，填写其 SSE 地址；`http` 继续用于 Streamable HTTP。客户端先打开事件流，再向服务公布的同源消息端点发送请求；不同主机、协议或端口的消息端点会被拒绝。Burp 用户可直接使用 API 地图中的「连接 Burp」，无需在此手填传输参数。
+
 ### 手动测试和 AI 调用
 
 连接后自动进入「工具测试」页，显示服务的工具列表。选择工具可以查看参数定义，填写 JSON 对象后点击「执行所选工具」，结果会显示在连接中心，**不会自动发给模型**。
@@ -91,15 +93,15 @@ v2.0.0 正式版新增两个共用本地操作：`trace_calls(className, methodI
 
 ## 兼容范围与限制
 
-主分支另增 Burp 专用页面与 `burp-readonly` AI 工具范围，使用官方 stdio 代理连接 SSE 服务，未改变通用 HTTP 客户端的协议范围。详见 [Burp 联动说明](BURP_WORKFLOW.md)；此新增适配尚未包含在 v2.0.0 下载包中。
+主分支另增 Burp 专用页面与 `burp-readonly` AI 工具范围，通过内置 HTTP+SSE 客户端直连官方扩展，无需代理 JAR。原有 stdio 配置仍可使用。详见 [Burp 联动说明](BURP_WORKFLOW.md)；此新增适配尚未包含在 v2.0.0 下载包中。
 
-- 协议实现固定在 **2025-11-25**，协商兼容 `2025-06-18`、`2025-03-26`；stdio 客户端额外接受 `2024-11-05`。不声称实现后续修订。
+- 协议实现固定在 **2025-11-25**，协商兼容 `2025-06-18`、`2025-03-26`；stdio 与主分支新增的 SSE 客户端额外接受 `2024-11-05`。不声称实现后续修订。
 - 本机服务端为无会话的 Streamable HTTP JSON 响应；GET/DELETE 返回 405，不提供独立 SSE 订阅流。
 - 外部 HTTP 客户端支持 JSON/SSE 响应、初始化返回的会话 ID、版本请求头；工具目录需手动刷新。会话过期后需重新连接，不会自动重试可能产生副作用的调用。
-- 当前实现 tools；不提供 resources、prompts、sampling、elicitation、OAuth、旧版 HTTP+SSE 或无 GUI 启动的服务模式。
+- 当前实现 tools；不提供 resources、prompts、sampling、elicitation、OAuth 或无 GUI 启动的服务模式。旧版 HTTP+SSE 仅作为主分支客户端选项提供，不改变 JADX 共享服务端的传输方式。
 - 每次外部请求最多 60 秒，消息限制约 1 MB；工具发现目录最多 1,024 个工具、累计 2,000,000 字符（单条传输消息仍限约 1 MB）。AI 目录保留最多 63 个外部工具、63,000 字符，并增加一个本地分页工具。
 - 一次 AI 分析至多 4 轮工具调用、8 次执行（本地分页读取也计数）。短结果直接返回；超过 12,000 字符的文本/结构化结果在本次运行内完整保留，并返回有效 JSON 页封装。模型可用 `mcp_read_result` 和 `nextOffset` 每次读取最多 3,000 个 UTF-16 字符；分页不再调用外部服务。最多保留 8 份、合计 2,000,000 字符，超出明确提示请求更小结果。引用不跨运行保存。开启 MCP 时使用非流式工具对话，完成后显示回答。
-- stdio 取消或超时会断开并终止子进程，之后需要手动重连。取消不能撤销外部服务已经执行的操作。
+- stdio 取消或超时会断开并终止子进程；SSE 取消或超时会关闭持久流，之后需要手动重连。SSE 初次建立连接最多等待 10 秒。取消不能撤销外部服务已经执行的操作。
 - 运行外部 MCP 程序会赋予它当前用户的操作系统权限；环境变量过滤不是沙箱。仅连接你信任的服务。
 
 实现依据：[MCP 生命周期](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)、[传输规范](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)、[工具规范](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)。

@@ -28,6 +28,7 @@ public final class McpClient implements AutoCloseable {
 		this.configuration = configuration.copy();
 		transport = "stdio".equals(configuration.transport)
 				? new McpStdioTransport(configuration, timeout)
+				: "sse".equals(configuration.transport) ? new McpSseTransport(configuration, timeout)
 				: new McpHttpTransport(configuration, timeout);
 	}
 
@@ -58,7 +59,7 @@ public final class McpClient implements AutoCloseable {
 		params.add("clientInfo", info);
 		JsonObject result = request("initialize", params, cancellation);
 		String version = McpJson.string(result, "protocolVersion", "");
-		if (!(McpJson.supported(version) || ("stdio".equals(configuration.transport) && "2024-11-05".equals(version)))) {
+		if (!(McpJson.supported(version) || (!"http".equals(configuration.transport) && "2024-11-05".equals(version)))) {
 			throw new IOException("Unsupported MCP protocol version");
 		}
 		if (!result.has("capabilities") || !result.getAsJsonObject("capabilities").has("tools")) {

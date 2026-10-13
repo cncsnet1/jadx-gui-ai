@@ -352,7 +352,9 @@ public final class InvestigationService {
 				if (!Set.of("operation", "target", "query").containsAll(call.keySet())) {
 					throw new IllegalArgumentException("Call schema");
 				}
-				String operation = string(call, "operation"), target = string(call, "target"), query = string(call, "query");
+				String operation = string(call, "operation");
+				String target = string(call, "target");
+				String query = string(call, "query");
 				if (!LocalAnalysisTools.OPERATIONS.contains(operation) || target.length() > 100 || query.length() > 200
 						|| (operation.equals("search_artifacts") ? query.isBlank() : target.isBlank())) {
 					throw new IllegalArgumentException("Call schema");

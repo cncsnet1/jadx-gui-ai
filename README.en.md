@@ -30,7 +30,7 @@ You do not need to know which class to search first. Start with a question: **Wh
 
 **v2.0.0 is a stable release.** Opening an APK automatically creates a local application report. Move between the report, API map, and investigation history; trace API callers and supported Retrofit / OkHttp client configurations; then let a model read relevant code in bounded steps. Investigations retain their evidence and can be saved and resumed.
 
-> **On the development branch, not in the v2.0.0 downloads:** the API map now includes Burp traffic connection setup, scoped history reads, candidate source correlations, saved metadata, and staging requests in Repeater. Supply Burp's official MCP extension and stdio proxy JAR separately. Protocol fixtures and Windows UI workflows have been tested; end-to-end testing with the real Burp extension is still pending. See the [Burp workflow guide (Chinese)](docs/BURP_WORKFLOW.md).
+> **On the development branch, not in the v2.0.0 downloads:** install and enable the official MCP Server extension in Burp, then click **Connect Burp** in the API map to use the default local address. Successful settings are saved automatically; no proxy JAR, Java selection, or launch arguments are needed. The traffic view supports scoped history reads, candidate source correlations, saved metadata, and staging requests in Repeater. Protocol fixtures and Windows UI workflows have been tested; end-to-end testing with the real Burp extension is still pending. See the [Burp workflow guide (Chinese)](docs/BURP_WORKFLOW.md).
 
 Local reports, API discovery, and call paths work **without a model**. The desktop packages include JADX and Java; basic analysis does not require Python, Node, or REA. AI features use a model service that you configure separately.
 
@@ -59,7 +59,9 @@ The Windows package has been tested by launching the application. macOS and Linu
 
 The original JADX CLI is included as `bin/jadx`, or `bin\jadx.bat` on Windows. Release assets include `SHA256SUMS.txt` and `release-manifest.json` to check the downloads, source commit, and bundled runtime.
 
-**Null pointer while initializing plugins?** A stack trace through `JadxPluginsTools.getEnabledPluginJars` → `Path.resolve` usually means an installed-plugin entry has no `jar` filename. This particular exception is not caused by Java 8. Close the app, back up and rename `%APPDATA%\skylot\jadx\config\plugins\plugins.json`, then restart to temporarily disable the external plugins registered in that file. If `JADX_CONFIG_DIR` is set, use its `plugins\plugins.json` instead. Reinstall the plugins you need afterward. The development branch skips invalid entries with a diagnostic; this fix is not in the v2.0.0 downloads.
+> **Plugin recovery on the development branch:** invalid installed-plugin records are skipped automatically. Malformed registry JSON is preserved in a complete `.bak` file before loading continues with bundled and drop-in plugins. External plugins from the damaged registry are temporarily disabled and can be reinstalled; the backup location is logged. No manual configuration editing is needed for these cases. This fix is not in the v2.0.0 downloads.
+
+**Null pointer while initializing plugins in v2.0.0?** A stack trace through `JadxPluginsTools.getEnabledPluginJars` → `Path.resolve` usually means an installed-plugin entry has no `jar` filename; this particular exception is not caused by Java 8. As a temporary workaround, close the app, back up and rename `%APPDATA%\skylot\jadx\config\plugins\plugins.json`, then restart and reinstall any external plugins you need. If `JADX_CONFIG_DIR` is set, use its `plugins\plugins.json` instead.
 
 ## Your first analysis
 

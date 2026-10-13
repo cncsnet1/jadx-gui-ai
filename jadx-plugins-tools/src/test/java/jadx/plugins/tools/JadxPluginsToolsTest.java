@@ -13,7 +13,6 @@ import jadx.plugins.tools.data.JadxPluginMetadata;
 
 import static jadx.core.utils.GsonUtils.buildGson;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JadxPluginsToolsTest {
 	@TempDir
@@ -90,12 +89,22 @@ class JadxPluginsToolsTest {
 	}
 
 	@Test
-	void unreadableRegistryKeepsItsContentsAndReportsTheParseCause() throws Exception {
+	void unreadableRegistryIsBackedUpAndBundledOrDropinLoadingCanContinue() throws Exception {
 		String broken = "{\"installed\":[";
 		Files.writeString(registry, broken);
-		assertThatThrownBy(tools::getEnabledPluginJars).isInstanceOf(RuntimeException.class)
-				.hasMessageContaining(registry.toString()).hasCauseInstanceOf(RuntimeException.class);
-		assertThat(Files.readString(registry)).isEqualTo(broken);
+		Path dropin = Files.createFile(dropins.resolve("extra.jar"));
+		assertThat(tools.getEnabledPluginJars()).containsExactly(dropin);
+		assertThat(Files.exists(registry)).isFalse();
+		try (java.util.stream.Stream<Path> files = Files.list(temp)) {
+			List<Path> backups = files.filter(p -> p.getFileName().toString().endsWith(".bak"))
+					.collect(java.util.stream.Collectors.toList());
+			assertThat(backups).hasSize(1);
+			assertThat(Files.readString(backups.get(0))).isEqualTo(broken);
+		}
+		assertThat(tools.getEnabledPluginJars()).containsExactly(dropin);
+		Path valid = Files.createFile(installed.resolve("valid.jar"));
+		writePlugin("valid", "valid.jar");
+		assertThat(tools.getEnabledPluginJars()).containsExactlyInAnyOrder(valid, dropin);
 	}
 
 	private void writePlugin(String id, String jar) throws Exception {
